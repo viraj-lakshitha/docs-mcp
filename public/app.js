@@ -24,6 +24,25 @@ let currentId = null;
 let dirty = false;
 let previewTimer = null;
 
+// ---- mobile view switching (Docs / Edit / Preview tab bar) ----
+
+const mobileNav = document.querySelector(".mobile-nav");
+const isMobile = () => matchMedia("(max-width: 900px)").matches;
+
+function setView(view) {
+  document.body.dataset.view = view;
+  for (const b of mobileNav.querySelectorAll("button")) {
+    b.classList.toggle("active", b.dataset.view === view);
+  }
+  // Diagrams can't be measured while the pane is hidden — re-render on entry.
+  if (view === "preview") schedulePreview(0);
+}
+
+mobileNav.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-view]");
+  if (btn) setView(btn.dataset.view);
+});
+
 async function api(method, url, body) {
   const res = await fetch(url, {
     method,
@@ -80,6 +99,7 @@ async function openDocument(id) {
     for (const el of [els.save, els.del, els.share]) el.disabled = false;
     schedulePreview(0);
     refreshDocList();
+    if (isMobile()) setView("edit");
   } catch (err) {
     setStatus(err.message);
   }
@@ -114,6 +134,7 @@ els.del.onclick = async () => {
   for (const el of [els.save, els.del, els.share]) el.disabled = true;
   els.preview.innerHTML = '<div class="empty-state">Select or create a document to get started.</div>';
   refreshDocList();
+  if (isMobile()) setView("docs");
 };
 
 els.share.onclick = async () => {
