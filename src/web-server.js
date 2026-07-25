@@ -4,11 +4,42 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { buildServer } from "./mcp.js";
 import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+
+// ---- MCP over HTTP ----
+// The same tools as src/mcp-server.js, served on /mcp via the Streamable HTTP
+// transport in stateless mode, so remote MCP clients can connect with just a
+// URL: claude mcp add --transport http docs http://localhost:4680/mcp
+app.post("/mcp", async (req, res) => {
+  const server = buildServer();
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  res.on("close", () => {
+    transport.close();
+    server.close();
+  });
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (err) {
+    console.error("MCP request failed:", err);
+    if (!res.headersSent) {
+      res.status(500).json({
+        jsonrpc: "2.0",
+        error: { code: -32603, message: "Internal server error" },
+        id: null,
+      });
+    }
+  }
+});
+// Stateless mode has no sessions to resume or terminate.
+app.get("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
+app.delete("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
 
 // ---- document CRUD ----
 

@@ -29,15 +29,25 @@ sidebar and click **Insert** to drop a markdown reference at the cursor.
 **Share view-only** creates a link anyone can open to read (but not edit) the
 document.
 
-## Hook it up to Claude
+## Hook it up to Claude (MCP access)
 
-Register the MCP server with Claude Code:
+The same MCP tools are available over two transports — use whichever fits:
+
+**HTTP (recommended — nothing extra to run).** The web server exposes MCP at
+`/mcp` (Streamable HTTP, stateless), so any MCP client can connect with just a
+URL:
+
+```bash
+claude mcp add --transport http docs http://localhost:4680/mcp
+```
+
+**stdio.** Claude Code spawns the server as a local process:
 
 ```bash
 claude mcp add docs -- node /path/to/docs-mcp/src/mcp-server.js
 ```
 
-Or add it to your MCP client config manually:
+Or in an MCP client config file:
 
 ```json
 {
@@ -50,8 +60,8 @@ Or add it to your MCP client config manually:
 }
 ```
 
-Keep `npm run web` running in another terminal; both processes share the same
-SQLite database, so documents Claude creates appear in the editor immediately.
+Keep `npm run web` running; every transport shares the same SQLite database,
+so documents Claude creates appear in the editor immediately.
 
 Then ask Claude things like:
 
@@ -96,6 +106,7 @@ Excalidraw's *Save to file*, or that Claude can author directly).
 | `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD + binary serving |
 | `POST /api/documents/:id/share`, `GET /api/documents/:id/shares`, `DELETE /api/shares/:token` | Manage share links |
 | `GET /s/:token`, `GET /api/share/:token` | View-only share page + its read-only data endpoint |
+| `POST /mcp` | MCP endpoint (Streamable HTTP transport, stateless) |
 
 ## Configuration
 
@@ -110,7 +121,7 @@ Excalidraw's *Save to file*, or that Claude can author directly).
 - Share tokens are 160-bit random values; a link is view-only because the
   share endpoints expose no document ids and no write operations. Revoking a
   token disables it immediately.
-- The editor and REST API have **no authentication** — run them locally or
+- The editor, REST API, and `/mcp` endpoint have **no authentication** — run them locally or
   behind your own auth proxy if you deploy this anywhere shared.
 - Markdown is rendered without sanitization (documents are authored by you or
   your Claude). Add a sanitizer (e.g. DOMPurify) before accepting untrusted
@@ -120,7 +131,8 @@ Excalidraw's *Save to file*, or that Claude can author directly).
 
 ```
 src/db.js          # SQLite data layer shared by both servers
-src/mcp-server.js  # MCP server (stdio) for Claude
-src/web-server.js  # Express app: editor, REST API, share pages, vendored libs
+src/mcp.js         # MCP tool definitions (shared by both transports)
+src/mcp-server.js  # MCP over stdio (spawned by Claude Code)
+src/web-server.js  # Express app: editor, REST API, share pages, /mcp endpoint
 public/            # editor UI, share page, shared renderer (marked + mermaid + excalidraw)
 ```
