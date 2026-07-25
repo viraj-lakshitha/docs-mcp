@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — docs-mcp</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <div class="login-card">
+    <h1>docs-mcp</h1>
+    <p class="login-sub">Create documents with Claude — markdown, Mermaid, Excalidraw, and view-only sharing.</p>
+    <div class="login-tabs">
+      <button id="tab-login" class="active">Sign in</button>
+      <button id="tab-signup">Create account</button>
+    </div>
+    <form id="auth-form">
+      <label>Email
+        <input id="email" type="email" autocomplete="email" required />
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" minlength="8" required />
+      </label>
+      <div id="auth-error" class="auth-error" hidden></div>
+      <button type="submit" class="primary" id="submit">Sign in</button>
+    </form>
+  </div>
+  <script type="module">
+    const form = document.getElementById("auth-form");
+    const errorEl = document.getElementById("auth-error");
+    const submitBtn = document.getElementById("submit");
+    const tabs = {
+      login: document.getElementById("tab-login"),
+      signup: document.getElementById("tab-signup"),
+    };
+    let mode = "login";
+
+    function setMode(next) {
+      mode = next;
+      tabs.login.classList.toggle("active", mode === "login");
+      tabs.signup.classList.toggle("active", mode === "signup");
+      submitBtn.textContent = mode === "login" ? "Sign in" : "Create account";
+      errorEl.hidden = true;
+    }
+    tabs.login.onclick = () => setMode("login");
+    tabs.signup.onclick = () => setMode("signup");
+
+    // Already signed in? Straight to the editor.
+    fetch("/api/auth/me").then((r) => { if (r.ok) location.href = "/"; });
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      submitBtn.disabled = true;
+      try {
+        const res = await fetch(`/api/auth/${mode === "login" ? "login" : "register"}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value,
+          }),
+        });
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          throw new Error(detail.error || `request failed (${res.status})`);
+        }
+        location.href = "/";
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        submitBtn.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>

@@ -16,6 +16,10 @@ const els = {
   newDoc: $("new-doc"),
   uploadBtn: $("upload-asset"),
   fileInput: $("asset-file"),
+  userEmail: $("user-email"),
+  logout: $("logout"),
+  newKey: $("new-key"),
+  keyList: $("key-list"),
 };
 
 let currentId = null;
@@ -28,6 +32,10 @@ async function api(method, url, body) {
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    location.href = "/login.html";
+    throw new Error("signed out");
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.error || `${method} ${url} failed (${res.status})`);
@@ -201,8 +209,55 @@ els.fileInput.onchange = async () => {
   refreshAssets();
 };
 
+// ---- account & MCP API keys ----
+
+async function refreshKeys() {
+  const keys = await api("GET", "/api/keys");
+  els.keyList.replaceChildren(
+    ...keys.map((key) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name" + (key.revoked ? " key-revoked" : "");
+      name.textContent = `${key.name} (${key.prefix}…)`;
+      li.append(name);
+      if (!key.revoked) {
+        const revoke = document.createElement("button");
+        revoke.textContent = "✕";
+        revoke.title = "Revoke key";
+        revoke.onclick = async () => {
+          if (!confirm(`Revoke key ${key.name}? MCP clients using it will stop working.`)) return;
+          await api("DELETE", `/api/keys/${key.id}`);
+          refreshKeys();
+        };
+        li.append(revoke);
+      }
+      return li;
+    })
+  );
+}
+
+els.newKey.onclick = async () => {
+  const name = prompt("Key name", "Claude");
+  if (name === null) return;
+  const key = await api("POST", "/api/keys", { name });
+  prompt(
+    "API key created — copy it now, it won't be shown again.\nUse it as a Bearer token on /mcp or as DOCS_MCP_API_KEY:",
+    key.key
+  );
+  refreshKeys();
+};
+
+els.logout.onclick = async () => {
+  await api("POST", "/api/auth/logout");
+  location.href = "/login.html";
+};
+
 // ---- init ----
 
+const me = await api("GET", "/api/auth/me"); // redirects to /login.html on 401
+els.userEmail.textContent = me.email;
+els.userEmail.title = me.email;
 await refreshDocList();
 await refreshAssets();
+await refreshKeys();
 if (location.hash.length > 1) openDocument(location.hash.slice(1));

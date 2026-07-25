@@ -5,7 +5,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as store from "./db.js";
 
-export function buildServer() {
+// All tools act as the given user: userId comes from a verified API key
+// (bearer token on /mcp, or DOCS_MCP_API_KEY for the stdio server).
+export function buildServer(userId) {
   const server = new McpServer({ name: "docs-mcp", version: "0.1.0" });
 
   const json = (value) => ({
@@ -36,7 +38,7 @@ export function buildServer() {
       },
     },
     async ({ title, content }) => {
-      const doc = await store.createDocument({ title, content: content ?? "" });
+      const doc = await store.createDocument(userId, { title, content: content ?? "" });
       return json({ ...doc, editor_url: `${store.baseUrl()}/#${doc.id}` });
     }
   );
@@ -48,7 +50,7 @@ export function buildServer() {
       description: "List all documents (id, title, timestamps; no content).",
       inputSchema: {},
     },
-    async () => json(await store.listDocuments())
+    async () => json(await store.listDocuments(userId))
   );
 
   server.registerTool(
@@ -59,7 +61,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) => {
-      const doc = await store.getDocument(id);
+      const doc = await store.getDocument(userId, id);
       return doc ? json(doc) : error(`No document with id ${id}`);
     }
   );
@@ -76,7 +78,7 @@ export function buildServer() {
       },
     },
     async ({ id, title, content }) => {
-      const doc = await store.updateDocument(id, { title, content });
+      const doc = await store.updateDocument(userId, id, { title, content });
       return doc ? json(doc) : error(`No document with id ${id}`);
     }
   );
@@ -89,7 +91,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) =>
-      (await store.deleteDocument(id)) ? json({ deleted: id }) : error(`No document with id ${id}`)
+      (await store.deleteDocument(userId, id)) ? json({ deleted: id }) : error(`No document with id ${id}`)
   );
 
   // ---- asset CRUD ----
@@ -110,7 +112,7 @@ export function buildServer() {
       const data = Buffer.from(base64_data, "base64");
       if (data.length === 0) return error("base64_data decoded to an empty file");
       try {
-        return json(await store.createAsset({ filename, mime: mime_type, data }));
+        return json(await store.createAsset(userId, { filename, mime: mime_type, data }));
       } catch (err) {
         return error(`Asset upload failed: ${err.message}`);
       }
@@ -124,7 +126,7 @@ export function buildServer() {
       description: "List all uploaded assets (id, filename, mime, size, url).",
       inputSchema: {},
     },
-    async () => json(await store.listAssets())
+    async () => json(await store.listAssets(userId))
   );
 
   server.registerTool(
@@ -135,7 +137,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Asset id") },
     },
     async ({ id }) =>
-      (await store.deleteAsset(id)) ? json({ deleted: id }) : error(`No asset with id ${id}`)
+      (await store.deleteAsset(userId, id)) ? json({ deleted: id }) : error(`No asset with id ${id}`)
   );
 
   // ---- view-only sharing ----
@@ -149,7 +151,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) => {
-      const share = await store.createShare(id);
+      const share = await store.createShare(userId, id);
       return share ? json(share) : error(`No document with id ${id}`);
     }
   );
@@ -161,7 +163,7 @@ export function buildServer() {
       description: "List share links, optionally filtered to one document.",
       inputSchema: { document_id: z.string().optional().describe("Filter by document id") },
     },
-    async ({ document_id }) => json(await store.listShares(document_id))
+    async ({ document_id }) => json(await store.listShares(userId, document_id))
   );
 
   server.registerTool(
@@ -172,7 +174,7 @@ export function buildServer() {
       inputSchema: { token: z.string().describe("Share token (the part after /s/ in the link)") },
     },
     async ({ token }) =>
-      (await store.revokeShare(token)) ? json({ revoked: token }) : error(`No share with token ${token}`)
+      (await store.revokeShare(userId, token)) ? json({ revoked: token }) : error(`No share with token ${token}`)
   );
 
   return server;
