@@ -6,7 +6,6 @@
   "scripts": {
     "postinstall": "node scripts/copy-vendor.mjs",
     "web": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.js",
-    "mcp": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/mcp-server.js",
     "dev:db": "node scripts/dev-db.mjs"
   },
   "engines": {

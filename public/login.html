@@ -155,8 +155,13 @@
 
     for (const input of [email, password]) input.addEventListener("input", clearErrors);
 
-    // Already signed in? Straight to the editor.
-    fetch("/api/auth/me").then((r) => { if (r.ok) location.href = "/"; });
+    // After auth, return to ?next= (e.g. an OAuth consent screen) — local
+    // paths only — or the editor.
+    const rawNext = new URLSearchParams(location.search).get("next");
+    const dest = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+
+    // Already signed in? Straight through.
+    fetch("/api/auth/me").then((r) => { if (r.ok) location.href = dest; });
     email.focus();
 
     form.onsubmit = async (e) => {
@@ -179,7 +184,7 @@
           const detail = await res.json().catch(() => ({}));
           throw new Error(detail.error || `Request failed (${res.status})`);
         }
-        location.href = "/";
+        location.href = dest;
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.hidden = false;

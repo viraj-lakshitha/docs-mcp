@@ -4,8 +4,9 @@
 //
 // Auth surfaces:
 //   - /api/auth/*                     public (login portal endpoints)
-//   - /api/*                          session cookie or bearer API key
-//   - /mcp                            bearer API key (session also accepted)
+//   - /.well-known/*, /oauth/*        public (OAuth discovery + flow; consent requires a session)
+//   - /api/*                          session cookie or OAuth bearer token
+//   - /mcp                            OAuth bearer token
 //   - /s/:token, /api/share/:token    public — that's what a share link is
 //   - /a/:id                          public — image embeds on share pages
 import express from "express";
@@ -13,34 +14,41 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "./mcp.js";
-import { authenticate, requireAuth, authRouter, apiKeyRouter } from "./auth.js";
+import { authenticate, requireAuth, authRouter } from "./auth.js";
+import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
 import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = express();
 app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: false }));
 
 // Express 4 doesn't forward rejected promises to the error handler on its own.
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-// ---- auth ----
+// ---- auth & OAuth provider ----
 
 app.use("/api/auth", authRouter());
-app.use("/api/keys", apiKeyRouter());
+app.use(metadataRouter());
+app.use("/oauth", oauthRouter());
 
 // ---- MCP over HTTP ----
-// The same tools as src/mcp-server.js, served on /mcp via the Streamable HTTP
-// transport in stateless mode. Requires a per-user API key (create one from
-// the editor UI), sent as a bearer token:
-// claude mcp add --transport http docs https://<your-app>.vercel.app/mcp \
-//   --header "Authorization: Bearer dmcp_..."
-app.post("/mcp", ah(async (req, res) => {
+// Served on /mcp via the Streamable HTTP transport in stateless mode.
+// Authentication is OAuth: add the deployed URL as a Claude custom connector
+// (or `claude mcp add --transport http docs https://<app>/mcp`) and the
+// client discovers /.well-known metadata, registers, and runs the
+// authorize/consent flow against your account.
+app.options("/mcp", oauthCors);
+app.post("/mcp", oauthCors, ah(async (req, res) => {
   const userId = await authenticate(req);
   if (!userId) {
-    res.setHeader("WWW-Authenticate", "Bearer");
+    res.setHeader(
+      "WWW-Authenticate",
+      `Bearer resource_metadata="${store.baseUrl()}/.well-known/oauth-protected-resource"`
+    );
     return res.status(401).json({
       jsonrpc: "2.0",
-      error: { code: -32001, message: "Authentication required: pass an API key as `Authorization: Bearer dmcp_...`" },
+      error: { code: -32001, message: "Authentication required: connect via OAuth to get a bearer token" },
       id: null,
     });
   }

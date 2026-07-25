@@ -42,14 +42,35 @@ function ensureSchema() {
         expires_at TEXT NOT NULL
       )`);
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS api_keys (
-        id         TEXT PRIMARY KEY,
-        user_id    TEXT NOT NULL REFERENCES users(id),
-        name       TEXT NOT NULL,
-        key_hash   TEXT NOT NULL UNIQUE,
-        prefix     TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        revoked    BOOLEAN NOT NULL DEFAULT FALSE
+      CREATE TABLE IF NOT EXISTS oauth_clients (
+        id            TEXT PRIMARY KEY,
+        name          TEXT NOT NULL,
+        redirect_uris TEXT NOT NULL,
+        created_at    TEXT NOT NULL
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS oauth_codes (
+        code_hash      TEXT PRIMARY KEY,
+        client_id      TEXT NOT NULL,
+        user_id        TEXT NOT NULL REFERENCES users(id),
+        redirect_uri   TEXT NOT NULL,
+        code_challenge TEXT NOT NULL,
+        scope          TEXT NOT NULL DEFAULT '',
+        expires_at     TEXT NOT NULL,
+        used           BOOLEAN NOT NULL DEFAULT FALSE
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS oauth_tokens (
+        id                 TEXT PRIMARY KEY,
+        user_id            TEXT NOT NULL REFERENCES users(id),
+        client_id          TEXT NOT NULL,
+        scope              TEXT NOT NULL DEFAULT '',
+        access_hash        TEXT NOT NULL UNIQUE,
+        refresh_hash       TEXT NOT NULL UNIQUE,
+        access_expires_at  TEXT NOT NULL,
+        refresh_expires_at TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        revoked            BOOLEAN NOT NULL DEFAULT FALSE
       )`);
     await pool.query(`
       CREATE TABLE IF NOT EXISTS documents (
@@ -178,44 +199,93 @@ export async function deleteSession(token) {
   await q("DELETE FROM sessions WHERE token = $1", [token]);
 }
 
-// ---- API keys (MCP + programmatic access) ----
+// ---- OAuth provider (MCP clients: Claude custom connectors, Claude Code) ----
 
-export async function createApiKey(userId, name) {
-  const raw = `dmcp_${crypto.randomBytes(24).toString("base64url")}`;
-  const key = {
-    id: newId(),
-    user_id: userId,
-    name: name || "MCP key",
-    prefix: raw.slice(0, 10),
-    created_at: now(),
-  };
-  await q("INSERT INTO api_keys (id, user_id, name, key_hash, prefix, created_at) VALUES ($1, $2, $3, $4, $5, $6)", [
-    key.id,
-    key.user_id,
-    key.name,
-    sha256(raw),
-    key.prefix,
-    key.created_at,
+const ACCESS_TTL_MS = 60 * 60 * 1000;
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const CODE_TTL_MS = 10 * 60 * 1000;
+
+export async function registerOAuthClient({ name, redirectUris }) {
+  const client = { id: newId(), name, redirect_uris: redirectUris, created_at: now() };
+  await q("INSERT INTO oauth_clients (id, name, redirect_uris, created_at) VALUES ($1, $2, $3, $4)", [
+    client.id,
+    client.name,
+    JSON.stringify(client.redirect_uris),
+    client.created_at,
   ]);
-  // The raw key is returned exactly once and never stored.
-  return { ...key, key: raw };
+  return client;
 }
 
-export async function getUserIdForApiKey(rawKey) {
-  if (!rawKey || !rawKey.startsWith("dmcp_")) return null;
-  const rows = await q("SELECT user_id FROM api_keys WHERE key_hash = $1 AND revoked = FALSE", [sha256(rawKey)]);
+export async function getOAuthClient(id) {
+  const rows = await q("SELECT * FROM oauth_clients WHERE id = $1", [id]);
+  if (!rows[0]) return null;
+  return { ...rows[0], redirect_uris: JSON.parse(rows[0].redirect_uris) };
+}
+
+export async function createAuthCode({ clientId, userId, redirectUri, codeChallenge, scope }) {
+  const raw = `dmac_${crypto.randomBytes(24).toString("base64url")}`;
+  await q(
+    "INSERT INTO oauth_codes (code_hash, client_id, user_id, redirect_uri, code_challenge, scope, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [sha256(raw), clientId, userId, redirectUri, codeChallenge, scope || "", new Date(Date.now() + CODE_TTL_MS).toISOString()]
+  );
+  return raw;
+}
+
+// Single-use: marks the code consumed atomically so a replayed code fails.
+export async function consumeAuthCode(rawCode) {
+  const rows = await q(
+    "UPDATE oauth_codes SET used = TRUE WHERE code_hash = $1 AND used = FALSE AND expires_at > $2 RETURNING *",
+    [sha256(rawCode), now()]
+  );
+  return rows[0] ?? null;
+}
+
+export async function createOAuthTokens({ userId, clientId, scope }) {
+  const access = `dmat_${crypto.randomBytes(32).toString("base64url")}`;
+  const refresh = `dmrt_${crypto.randomBytes(32).toString("base64url")}`;
+  await q(
+    `INSERT INTO oauth_tokens (id, user_id, client_id, scope, access_hash, refresh_hash, access_expires_at, refresh_expires_at, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      newId(),
+      userId,
+      clientId,
+      scope || "",
+      sha256(access),
+      sha256(refresh),
+      new Date(Date.now() + ACCESS_TTL_MS).toISOString(),
+      new Date(Date.now() + REFRESH_TTL_MS).toISOString(),
+      now(),
+    ]
+  );
+  return {
+    access_token: access,
+    refresh_token: refresh,
+    token_type: "bearer",
+    expires_in: Math.floor(ACCESS_TTL_MS / 1000),
+    scope: scope || "",
+  };
+}
+
+export async function getUserIdForAccessToken(raw) {
+  if (!raw || !raw.startsWith("dmat_")) return null;
+  const rows = await q(
+    "SELECT user_id FROM oauth_tokens WHERE access_hash = $1 AND revoked = FALSE AND access_expires_at > $2",
+    [sha256(raw), now()]
+  );
   return rows[0]?.user_id ?? null;
 }
 
-export async function listApiKeys(userId) {
-  return q("SELECT id, name, prefix, created_at, revoked FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC", [
-    userId,
-  ]);
-}
-
-export async function revokeApiKey(userId, id) {
-  const rows = await q("UPDATE api_keys SET revoked = TRUE WHERE id = $1 AND user_id = $2 RETURNING id", [id, userId]);
-  return rows.length > 0;
+// Refresh-token rotation: the old grant row is revoked and a fresh token pair
+// is issued for the same user/client/scope.
+export async function rotateRefreshToken(raw) {
+  if (!raw || !raw.startsWith("dmrt_")) return null;
+  const rows = await q(
+    "UPDATE oauth_tokens SET revoked = TRUE WHERE refresh_hash = $1 AND revoked = FALSE AND refresh_expires_at > $2 RETURNING user_id, client_id, scope",
+    [sha256(raw), now()]
+  );
+  if (!rows[0]) return null;
+  return createOAuthTokens({ userId: rows[0].user_id, clientId: rows[0].client_id, scope: rows[0].scope });
 }
 
 // ---- documents (scoped to owner) ----

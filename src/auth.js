@@ -1,7 +1,7 @@
 // Authentication for the web app and MCP endpoint.
 // Browser users log in with email + password and get an HttpOnly session
-// cookie; MCP clients and API scripts authenticate with a per-user API key
-// sent as `Authorization: Bearer dmcp_...`.
+// cookie; MCP clients authenticate with an OAuth access token obtained via
+// the flow in src/oauth.js, sent as `Authorization: Bearer dmat_...`.
 import express from "express";
 import * as store from "./db.js";
 
@@ -30,11 +30,11 @@ function setSessionCookie(req, res, token, expiresAt) {
   res.setHeader("Set-Cookie", attrs.join("; "));
 }
 
-// Resolves the acting user from a bearer API key or a session cookie.
+// Resolves the acting user from an OAuth bearer token or a session cookie.
 export async function authenticate(req) {
   const header = req.headers.authorization;
   if (header?.startsWith("Bearer ")) {
-    const userId = await store.getUserIdForApiKey(header.slice(7).trim());
+    const userId = await store.getUserIdForAccessToken(header.slice(7).trim());
     if (userId) return userId;
   }
   const token = parseCookies(req)[COOKIE_NAME];
@@ -43,6 +43,15 @@ export async function authenticate(req) {
     if (session) return session.user_id;
   }
   return null;
+}
+
+// Resolves the signed-in browser user (session cookie only) — used by the
+// OAuth authorize/consent pages, which must not accept bearer tokens.
+export async function sessionUser(req) {
+  const token = parseCookies(req)[COOKIE_NAME];
+  if (!token) return null;
+  const session = await store.getSession(token);
+  return session ? store.getUserById(session.user_id) : null;
 }
 
 export const requireAuth = ah(async (req, res, next) => {
@@ -100,24 +109,3 @@ export function authRouter() {
   return router;
 }
 
-export function apiKeyRouter() {
-  const router = express.Router();
-  router.use(requireAuth);
-
-  // The raw key appears only in this response — store it somewhere safe.
-  router.post("/", ah(async (req, res) => {
-    res.status(201).json(await store.createApiKey(req.userId, req.body?.name));
-  }));
-
-  router.get("/", ah(async (req, res) => {
-    res.json(await store.listApiKeys(req.userId));
-  }));
-
-  router.delete("/:id", ah(async (req, res) => {
-    (await store.revokeApiKey(req.userId, req.params.id))
-      ? res.json({ revoked: req.params.id })
-      : res.status(404).json({ error: "not found" });
-  }));
-
-  return router;
-}

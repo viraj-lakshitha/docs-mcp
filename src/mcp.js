@@ -1,12 +1,11 @@
 // MCP tool definitions: document, asset, and share-link tools so Claude can
-// create and manage documents. buildServer() is used by both transports —
-// stdio (src/mcp-server.js) and Streamable HTTP (/mcp in src/web-server.js).
+// create and manage documents. Served over Streamable HTTP at /mcp (src/app.js).
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as store from "./db.js";
 
-// All tools act as the given user: userId comes from a verified API key
-// (bearer token on /mcp, or DOCS_MCP_API_KEY for the stdio server).
+// All tools act as the given user: userId comes from a verified OAuth
+// access token presented to /mcp.
 export function buildServer(userId) {
   const server = new McpServer({ name: "docs-mcp", version: "0.1.0" });
 
