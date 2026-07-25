@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>docs-mcp</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header>
+        <h1>docs-mcp</h1>
+        <button id="new-doc" class="primary" title="New document">＋ New</button>
+      </header>
+      <ul id="doc-list" class="doc-list"></ul>
+      <div class="assets-section">
+        <h2>Assets <button id="upload-asset" style="float:right">Upload</button></h2>
+        <input id="asset-file" type="file" hidden />
+        <ul id="asset-list" class="asset-list"></ul>
+      </div>
+    </aside>
+
+    <section class="editor-pane">
+      <div class="pane-header">
+        <input id="title" type="text" placeholder="Title" disabled />
+        <button id="save" class="primary" disabled>Save</button>
+        <button id="delete-doc" disabled>Delete</button>
+      </div>
+      <textarea id="content" placeholder="Write markdown here — use ```mermaid and ```excalidraw fences for diagrams." disabled></textarea>
+    </section>
+
+    <section class="preview-pane">
+      <div class="pane-header">
+        <span>Preview</span>
+        <span id="status"></span>
+        <button id="share" disabled>Share view-only</button>
+      </div>
+      <div id="preview" class="rendered">
+        <div class="empty-state">Select or create a document to get started.</div>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
