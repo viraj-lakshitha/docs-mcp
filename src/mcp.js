@@ -36,7 +36,7 @@ export function buildServer() {
       },
     },
     async ({ title, content }) => {
-      const doc = store.createDocument({ title, content: content ?? "" });
+      const doc = await store.createDocument({ title, content: content ?? "" });
       return json({ ...doc, editor_url: `${store.baseUrl()}/#${doc.id}` });
     }
   );
@@ -48,7 +48,7 @@ export function buildServer() {
       description: "List all documents (id, title, timestamps; no content).",
       inputSchema: {},
     },
-    async () => json(store.listDocuments())
+    async () => json(await store.listDocuments())
   );
 
   server.registerTool(
@@ -59,7 +59,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) => {
-      const doc = store.getDocument(id);
+      const doc = await store.getDocument(id);
       return doc ? json(doc) : error(`No document with id ${id}`);
     }
   );
@@ -76,7 +76,7 @@ export function buildServer() {
       },
     },
     async ({ id, title, content }) => {
-      const doc = store.updateDocument(id, { title, content });
+      const doc = await store.updateDocument(id, { title, content });
       return doc ? json(doc) : error(`No document with id ${id}`);
     }
   );
@@ -89,7 +89,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) =>
-      store.deleteDocument(id) ? json({ deleted: id }) : error(`No document with id ${id}`)
+      (await store.deleteDocument(id)) ? json({ deleted: id }) : error(`No document with id ${id}`)
   );
 
   // ---- asset CRUD ----
@@ -107,14 +107,13 @@ export function buildServer() {
       },
     },
     async ({ filename, mime_type, base64_data }) => {
-      let data;
-      try {
-        data = Buffer.from(base64_data, "base64");
-      } catch {
-        return error("base64_data is not valid base64");
-      }
+      const data = Buffer.from(base64_data, "base64");
       if (data.length === 0) return error("base64_data decoded to an empty file");
-      return json(store.createAsset({ filename, mime: mime_type, data }));
+      try {
+        return json(await store.createAsset({ filename, mime: mime_type, data }));
+      } catch (err) {
+        return error(`Asset upload failed: ${err.message}`);
+      }
     }
   );
 
@@ -125,7 +124,7 @@ export function buildServer() {
       description: "List all uploaded assets (id, filename, mime, size, url).",
       inputSchema: {},
     },
-    async () => json(store.listAssets())
+    async () => json(await store.listAssets())
   );
 
   server.registerTool(
@@ -136,7 +135,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Asset id") },
     },
     async ({ id }) =>
-      store.deleteAsset(id) ? json({ deleted: id }) : error(`No asset with id ${id}`)
+      (await store.deleteAsset(id)) ? json({ deleted: id }) : error(`No asset with id ${id}`)
   );
 
   // ---- view-only sharing ----
@@ -150,7 +149,7 @@ export function buildServer() {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) => {
-      const share = store.createShare(id);
+      const share = await store.createShare(id);
       return share ? json(share) : error(`No document with id ${id}`);
     }
   );
@@ -162,7 +161,7 @@ export function buildServer() {
       description: "List share links, optionally filtered to one document.",
       inputSchema: { document_id: z.string().optional().describe("Filter by document id") },
     },
-    async ({ document_id }) => json(store.listShares(document_id))
+    async ({ document_id }) => json(await store.listShares(document_id))
   );
 
   server.registerTool(
@@ -173,7 +172,7 @@ export function buildServer() {
       inputSchema: { token: z.string().describe("Share token (the part after /s/ in the link)") },
     },
     async ({ token }) =>
-      store.revokeShare(token) ? json({ revoked: token }) : error(`No share with token ${token}`)
+      (await store.revokeShare(token)) ? json({ revoked: token }) : error(`No share with token ${token}`)
   );
 
   return server;
