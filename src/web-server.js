@@ -1,0 +1,8 @@
+// Local entry point: runs the same Express app Vercel serves via api/index.js.
+import app from "./app.js";
+import { baseUrl } from "./db.js";
+
+const port = Number(process.env.PORT || 4680);
+app.listen(port, () => {
+  console.log(`docs-mcp web app on ${baseUrl()} (port ${port})`);
+});

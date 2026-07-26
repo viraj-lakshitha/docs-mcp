@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in — docs-mcp</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <aside class="login-brand">
+      <div class="login-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M8 13h8M8 17h5"/>
+        </svg>
+      </div>
+      <h2>docs-mcp</h2>
+      <p>Create documents with Claude.</p>
+      <ul class="login-features">
+        <li>Markdown with live preview</li>
+        <li>Mermaid &amp; Excalidraw diagrams</li>
+        <li>Images &amp; file assets</li>
+        <li>View-only share links</li>
+        <li>MCP access for Claude</li>
+      </ul>
+    </aside>
+
+    <section class="login-form-panel">
+      <div class="login-tabs" role="tablist">
+        <button id="tab-login" role="tab" aria-selected="true" class="active">Sign in</button>
+        <button id="tab-signup" role="tab" aria-selected="false">Create account</button>
+      </div>
+
+      <h1 id="form-title">Welcome back</h1>
+      <p class="login-sub" id="form-sub">Sign in to your workspace.</p>
+
+      <form id="auth-form" novalidate>
+        <div class="field">
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <span class="field-error" id="email-error"></span>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" minlength="8" required />
+            <button type="button" id="toggle-password" class="toggle-password" aria-label="Show password">
+              <svg id="eye-open" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>
+              </svg>
+              <svg id="eye-closed" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <path d="M2 12s3.5-6.5 10-6.5c2 0 3.7.6 5.1 1.5M22 12s-3.5 6.5-10 6.5c-2 0-3.7-.6-5.1-1.5"/><path d="M3 3l18 18"/>
+              </svg>
+            </button>
+          </div>
+          <span class="field-hint" id="password-hint" hidden>At least 8 characters.</span>
+          <span class="field-error" id="password-error"></span>
+        </div>
+
+        <div id="auth-error" class="auth-error" role="alert" hidden></div>
+
+        <button type="submit" class="primary login-submit" id="submit">
+          <span class="spinner" aria-hidden="true" hidden></span>
+          <span id="submit-label">Sign in</span>
+        </button>
+      </form>
+
+      <p class="login-switch" id="switch-hint">
+        New here? <a href="#" id="switch-link">Create an account</a>
+      </p>
+    </section>
+  </main>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id);
+    const form = $("auth-form");
+    const email = $("email");
+    const password = $("password");
+    const errorEl = $("auth-error");
+    const submitBtn = $("submit");
+    const spinner = submitBtn.querySelector(".spinner");
+    let mode = "login";
+
+    const COPY = {
+      login: {
+        title: "Welcome back",
+        sub: "Sign in to your workspace.",
+        submit: "Sign in",
+        switchHint: "New here? ",
+        switchLink: "Create an account",
+        autocomplete: "current-password",
+      },
+      signup: {
+        title: "Create your account",
+        sub: "A workspace for your documents, ready in seconds.",
+        submit: "Create account",
+        switchHint: "Already have an account? ",
+        switchLink: "Sign in",
+        autocomplete: "new-password",
+      },
+    };
+
+    function setMode(next) {
+      mode = next;
+      const copy = COPY[mode];
+      $("tab-login").classList.toggle("active", mode === "login");
+      $("tab-signup").classList.toggle("active", mode === "signup");
+      $("tab-login").setAttribute("aria-selected", mode === "login");
+      $("tab-signup").setAttribute("aria-selected", mode === "signup");
+      $("form-title").textContent = copy.title;
+      $("form-sub").textContent = copy.sub;
+      $("submit-label").textContent = copy.submit;
+      $("switch-hint").childNodes[0].textContent = copy.switchHint;
+      $("switch-link").textContent = copy.switchLink;
+      password.setAttribute("autocomplete", copy.autocomplete);
+      $("password-hint").hidden = mode !== "signup";
+      clearErrors();
+    }
+
+    function clearErrors() {
+      errorEl.hidden = true;
+      for (const id of ["email-error", "password-error"]) $(id).textContent = "";
+      email.classList.remove("invalid");
+      password.classList.remove("invalid");
+    }
+
+    function fieldError(input, id, message) {
+      $(id).textContent = message;
+      input.classList.add("invalid");
+      input.focus();
+    }
+
+    function setBusy(busy) {
+      submitBtn.disabled = busy;
+      spinner.hidden = !busy;
+    }
+
+    $("tab-login").onclick = () => setMode("login");
+    $("tab-signup").onclick = () => setMode("signup");
+    $("switch-link").onclick = (e) => {
+      e.preventDefault();
+      setMode(mode === "login" ? "signup" : "login");
+      email.focus();
+    };
+
+    $("toggle-password").onclick = () => {
+      const show = password.type === "password";
+      password.type = show ? "text" : "password";
+      $("eye-open").hidden = show;
+      $("eye-closed").hidden = !show;
+      $("toggle-password").setAttribute("aria-label", show ? "Hide password" : "Show password");
+    };
+
+    for (const input of [email, password]) input.addEventListener("input", clearErrors);
+
+    // After auth, return to ?next= (e.g. an OAuth consent screen) — local
+    // paths only — or the editor.
+    const rawNext = new URLSearchParams(location.search).get("next");
+    const dest = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
+
+    // Already signed in? Straight through.
+    fetch("/api/auth/me").then((r) => { if (r.ok) location.href = dest; });
+    email.focus();
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      clearErrors();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
+        return fieldError(email, "email-error", "Enter a valid email address.");
+      }
+      if (password.value.length < 8) {
+        return fieldError(password, "password-error", "Password must be at least 8 characters.");
+      }
+      setBusy(true);
+      try {
+        const res = await fetch(`/api/auth/${mode === "login" ? "login" : "register"}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.value.trim(), password: password.value }),
+        });
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          throw new Error(detail.error || `Request failed (${res.status})`);
+        }
+        location.href = dest;
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        setBusy(false);
+      }
+    };
+  </script>
+</body>
+</html>

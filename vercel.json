@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/s/:token", "destination": "/share.html" },
+    { "source": "/(.*)", "destination": "/api" }
+  ]
+}

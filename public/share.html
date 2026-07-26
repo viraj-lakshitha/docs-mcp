@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shared document</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="share-wrap">
+    <div class="share-header">
+      <span class="share-badge">view-only</span>
+      <h1 id="doc-title">Loading…</h1>
+      <div class="meta" id="doc-meta"></div>
+    </div>
+    <div id="doc-body" class="rendered"></div>
+  </div>
+  <script type="module">
+    import { renderDocument } from "/render.js";
+
+    const token = location.pathname.split("/").pop();
+    const titleEl = document.getElementById("doc-title");
+    const metaEl = document.getElementById("doc-meta");
+    const bodyEl = document.getElementById("doc-body");
+
+    try {
+      const res = await fetch(`/api/share/${encodeURIComponent(token)}`);
+      if (!res.ok) throw new Error("This link is invalid or has been revoked.");
+      const doc = await res.json();
+      document.title = doc.title;
+      titleEl.textContent = doc.title;
+      metaEl.textContent = `Last updated ${new Date(doc.updated_at).toLocaleString()}`;
+      await renderDocument(bodyEl, doc.content);
+    } catch (err) {
+      titleEl.textContent = "Document unavailable";
+      metaEl.textContent = err.message;
+    }
+  </script>
+</body>
+</html>
