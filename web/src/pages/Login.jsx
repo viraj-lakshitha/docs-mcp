@@ -1,4 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Brand, BrandLogo } from "../components/Brand.jsx";
+import { Button } from "../components/Button.jsx";
+import { Field } from "../components/Field.jsx";
+import { EyeIcon, EyeOffIcon } from "../components/Icons.jsx";
 
 const COPY = {
   login: {
@@ -86,12 +90,8 @@ export default function Login() {
     <div className="login-body">
       <main className="login-card">
         <aside className="login-brand">
-          <div className="login-logo" aria-hidden="true">
-            <BrandIcon size={28} />
-          </div>
-          <h2 className="brand">
-            Notes <span className="brand-sub">by Optiq Labs</span>
-          </h2>
+          <BrandLogo />
+          <Brand as="h2" />
           <p>Create documents with Claude.</p>
           <ul className="login-features">
             <li>Markdown with live preview</li>
@@ -107,63 +107,65 @@ export default function Login() {
 
         <section className="login-form-panel">
           <div className="login-tabs" role="tablist">
-            <button role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => switchMode("login")}>
+            <Button role="tab" aria-selected={mode === "login"} active={mode === "login"} onClick={() => switchMode("login")}>
               Sign in
-            </button>
-            <button role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => switchMode("signup")}>
+            </Button>
+            <Button role="tab" aria-selected={mode === "signup"} active={mode === "signup"} onClick={() => switchMode("signup")}>
               Create account
-            </button>
+            </Button>
           </div>
 
           <h1>{copy.title}</h1>
           <p className="login-sub">{copy.sub}</p>
 
           <form onSubmit={submit} noValidate>
-            <div className="field">
-              <label htmlFor="email">Email</label>
-              <input
-                id="email"
-                ref={emailRef}
-                type="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={email}
-                className={fieldErrors.email ? "invalid" : ""}
-                onChange={(e) => { setEmail(e.target.value); clearErrors(); }}
-              />
-              {fieldErrors.email && <span className="field-error">{fieldErrors.email}</span>}
-            </div>
-            <div className="field">
-              <label htmlFor="password">Password</label>
-              <div className="password-wrap">
+            <Field label="Email" error={fieldErrors.email}>
+              {(id, className) => (
                 <input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete={copy.autocomplete}
-                  placeholder="••••••••"
-                  value={password}
-                  className={fieldErrors.password ? "invalid" : ""}
-                  onChange={(e) => { setPassword(e.target.value); clearErrors(); }}
+                  id={id}
+                  ref={emailRef}
+                  className={className}
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); clearErrors(); }}
                 />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((s) => !s)}
-                >
-                  <EyeIcon open={!showPassword} />
-                </button>
-              </div>
-              {mode === "signup" && !fieldErrors.password && <span className="field-hint">At least 8 characters.</span>}
-              {fieldErrors.password && <span className="field-error">{fieldErrors.password}</span>}
-            </div>
+              )}
+            </Field>
+            <Field
+              label="Password"
+              error={fieldErrors.password}
+              hint={mode === "signup" ? "At least 8 characters." : undefined}
+            >
+              {(id, className) => (
+                <div className="password-wrap">
+                  <input
+                    id={id}
+                    className={className}
+                    type={showPassword ? "text" : "password"}
+                    autoComplete={copy.autocomplete}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); clearErrors(); }}
+                  />
+                  <Button
+                    type="button"
+                    variant="bare"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((s) => !s)}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </Button>
+                </div>
+              )}
+            </Field>
 
-            {serverError && <div className="auth-error" role="alert">{serverError}</div>}
+            {serverError && <div className="alert" role="alert">{serverError}</div>}
 
-            <button type="submit" className="primary login-submit" disabled={busy}>
-              {busy && <span className="spinner" aria-hidden="true" />}
-              <span>{copy.submit}</span>
-            </button>
+            <Button type="submit" variant="primary" size="lg" block loading={busy}>
+              {copy.submit}
+            </Button>
           </form>
 
           <p className="login-switch">
@@ -175,29 +177,5 @@ export default function Login() {
         </section>
       </main>
     </div>
-  );
-}
-
-export function BrandIcon({ size = 24 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M8 13h8M8 17h5" />
-    </svg>
-  );
-}
-
-function EyeIcon({ open }) {
-  return open ? (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" />
-      <circle cx="12" cy="12" r="2.8" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3.5-6.5 10-6.5c2 0 3.7.6 5.1 1.5M22 12s-3.5 6.5-10 6.5c-2 0-3.7-.6-5.1-1.5" />
-      <path d="M3 3l18 18" />
-    </svg>
   );
 }

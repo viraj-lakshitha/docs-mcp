@@ -181,7 +181,7 @@ src/oauth.js         # OAuth 2.1 provider: discovery, registration, consent, tok
 src/mcp.js           # MCP tool definitions (served over /mcp)
 src/app.js           # Express app: REST API, /mcp, OAuth routes, SPA fallback
 src/web-server.js    # local entry point (app.listen)
-web/                 # React app (Vite): editor, login, share pages, renderer
+web/                 # React app (Vite): pages + design system (see web/DESIGN.md)
 scripts/dev-db.mjs   # local PGlite Postgres for development
 public/              # build output of web/ (gitignored; created by npm run build)
 ```

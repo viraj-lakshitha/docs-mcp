@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
-import { renderDocument } from "../render.js";
-import { BrandIcon } from "./Login.jsx";
-
-const isMobile = () => matchMedia("(max-width: 900px)").matches;
+import { isMobile } from "../breakpoints.js";
+import { Button } from "../components/Button.jsx";
+import { ConfirmDialog, PromptDialog, ShareLinkDialog } from "../components/Dialog.jsx";
+import { Sidebar } from "../components/editor/Sidebar.jsx";
+import { MobileNav } from "../components/editor/MobileNav.jsx";
+import { PreviewPane } from "../components/editor/PreviewPane.jsx";
 
 export default function Editor() {
   const [me, setMe] = useState(null);
@@ -15,8 +17,8 @@ export default function Editor() {
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState("");
   const [view, setView] = useState("docs");
+  const [dialog, setDialog] = useState(null); // {type, ...payload}
   const contentRef = useRef(null);
-  const fileRef = useRef(null);
   const statusTimer = useRef(null);
 
   const flash = useCallback((text) => {
@@ -33,8 +35,7 @@ export default function Editor() {
   const refreshDocs = useCallback(async () => setDocs(await api("GET", "/api/documents")), []);
   const refreshAssets = useCallback(async () => setAssets(await api("GET", "/api/assets")), []);
 
-  const openDocument = useCallback(async (id, { confirmDiscard = true } = {}) => {
-    if (confirmDiscard && dirty && !confirm("Discard unsaved changes?")) return;
+  const loadDocument = useCallback(async (id) => {
     try {
       const doc = await api("GET", `/api/documents/${id}`);
       setCurrentId(doc.id);
@@ -46,14 +47,22 @@ export default function Editor() {
     } catch (err) {
       flash(err.message);
     }
-  }, [dirty, flash]);
+  }, [flash]);
+
+  const openDocument = useCallback((id) => {
+    if (dirty && id !== currentId) {
+      setDialog({ type: "discard", id });
+    } else {
+      loadDocument(id);
+    }
+  }, [dirty, currentId, loadDocument]);
 
   useEffect(() => {
     (async () => {
       const user = await api("GET", "/api/auth/me");
       setMe(user);
       await Promise.all([refreshDocs(), refreshAssets()]);
-      if (location.hash.length > 1) openDocument(location.hash.slice(1), { confirmDiscard: false });
+      if (location.hash.length > 1) loadDocument(location.hash.slice(1));
     })().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,16 +86,13 @@ export default function Editor() {
     return () => document.removeEventListener("keydown", onKey);
   }, [save]);
 
-  const createDoc = async () => {
-    const docTitle = prompt("Document title", "Untitled");
-    if (!docTitle) return;
+  const createDoc = async (docTitle) => {
     const doc = await api("POST", "/api/documents", { title: docTitle, content: "" });
     await refreshDocs();
-    openDocument(doc.id);
+    loadDocument(doc.id);
   };
 
   const deleteDoc = async () => {
-    if (!currentId || !confirm("Delete this document and its share links?")) return;
     await api("DELETE", `/api/documents/${currentId}`);
     setCurrentId(null);
     setTitle("");
@@ -98,10 +104,8 @@ export default function Editor() {
   };
 
   const share = async () => {
-    if (!currentId) return;
     const shareLink = await api("POST", `/api/documents/${currentId}/share`);
-    await navigator.clipboard?.writeText(shareLink.url).catch(() => {});
-    prompt("View-only link (copied to clipboard):", shareLink.url);
+    setDialog({ type: "share", url: shareLink.url });
   };
 
   const logout = async () => {
@@ -124,12 +128,14 @@ export default function Editor() {
     refreshAssets();
   };
 
-  const insertAtCursor = (text) => {
+  const insertAsset = (asset) => {
     const el = contentRef.current;
     if (!el || !currentId) return;
+    const text = asset.mime.startsWith("image/")
+      ? `![${asset.filename}](${asset.url})`
+      : `[${asset.filename}](${asset.url})`;
     const { selectionStart: start, selectionEnd: end } = el;
-    const next = content.slice(0, start) + text + content.slice(end);
-    setContent(next);
+    setContent(content.slice(0, start) + text + content.slice(end));
     setDirty(true);
     requestAnimationFrame(() => {
       el.selectionStart = el.selectionEnd = start + text.length;
@@ -139,88 +145,36 @@ export default function Editor() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <header>
-          <h1 className="brand">
-            Notes <span className="brand-sub">by Optiq Labs</span>
-          </h1>
-          <button className="primary" title="New document" onClick={createDoc}>＋ New</button>
-        </header>
-        <ul className="doc-list">
-          {docs.map((doc) => (
-            <li key={doc.id} className={doc.id === currentId ? "active" : ""} onClick={() => openDocument(doc.id)}>
-              <span className="title">{doc.title}</span>
-              <span className="meta">{new Date(doc.updated_at).toLocaleString()}</span>
-            </li>
-          ))}
-        </ul>
-        <div className="assets-section">
-          <h2>
-            Assets{" "}
-            <button style={{ float: "right" }} onClick={() => fileRef.current?.click()}>Upload</button>
-          </h2>
-          <input
-            ref={fileRef}
-            type="file"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) uploadAsset(file);
-              e.target.value = "";
-            }}
-          />
-          <ul className="asset-list">
-            {assets.map((asset) => (
-              <li key={asset.id}>
-                <a className="name" href={asset.url} target="_blank" rel="noopener noreferrer">{asset.filename}</a>
-                <button
-                  title="Insert markdown reference at cursor"
-                  onClick={() =>
-                    insertAtCursor(
-                      asset.mime.startsWith("image/")
-                        ? `![${asset.filename}](${asset.url})`
-                        : `[${asset.filename}](${asset.url})`
-                    )
-                  }
-                >
-                  Insert
-                </button>
-                <button
-                  title="Delete asset"
-                  onClick={async () => {
-                    if (!confirm(`Delete asset ${asset.filename}?`)) return;
-                    await api("DELETE", `/api/assets/${asset.id}`);
-                    refreshAssets();
-                  }}
-                >
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="account-section">
-          <div className="account-bar">
-            <span className="user-email" title={me?.email}>{me?.email}</span>
-            <button onClick={logout}>Log out</button>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        me={me}
+        docs={docs}
+        assets={assets}
+        currentId={currentId}
+        onNewDoc={() => setDialog({ type: "new" })}
+        onOpenDoc={openDocument}
+        onUploadAsset={uploadAsset}
+        onInsertAsset={insertAsset}
+        onDeleteAsset={(asset) => setDialog({ type: "delete-asset", asset })}
+        onLogout={logout}
+      />
 
       <section className="editor-pane">
         <div className="pane-header">
           <input
+            className="input"
             type="text"
             placeholder="Title"
             value={title}
             disabled={!currentId}
             onChange={(e) => { setTitle(e.target.value); setDirty(true); }}
           />
-          <button className="primary" disabled={!currentId} onClick={save}>Save</button>
-          <button disabled={!currentId} onClick={deleteDoc}>Delete</button>
+          <Button variant="primary" disabled={!currentId} onClick={save}>Save</Button>
+          <Button variant="danger" disabled={!currentId} onClick={() => setDialog({ type: "delete-doc" })}>
+            Delete
+          </Button>
         </div>
         <textarea
-          id="content"
+          className="editor-textarea"
           ref={contentRef}
           placeholder="Write markdown here — use ```mermaid and ```excalidraw fences for diagrams."
           value={content}
@@ -231,69 +185,59 @@ export default function Editor() {
 
       <section className="preview-pane">
         <div className="pane-header">
-          <span>Preview</span>
-          <span id="status">{status}</span>
-          <button disabled={!currentId} onClick={share}>Share view-only</button>
+          <span className="pane-header__title">Preview</span>
+          <span className="status-chip">{status}</span>
+          <span className="pane-header__spacer" />
+          <Button disabled={!currentId} onClick={share}>Share view-only</Button>
         </div>
-        <Preview markdown={content} active={currentId !== null} view={view} />
+        <PreviewPane markdown={content} active={currentId !== null} view={view} />
       </section>
 
-      <nav className="mobile-nav" aria-label="Views">
-        {[
-          ["docs", "Docs", <DocsIcon key="i" />],
-          ["edit", "Edit", <EditIcon key="i" />],
-          ["preview", "Preview", <PreviewIcon key="i" />],
-        ].map(([key, label, icon]) => (
-          <button key={key} className={view === key ? "active" : ""} onClick={() => setView(key)}>
-            {icon}
-            {label}
-          </button>
-        ))}
-      </nav>
+      <MobileNav view={view} onChange={setView} />
+
+      {dialog?.type === "new" && (
+        <PromptDialog
+          title="New document"
+          label="Title"
+          placeholder="Untitled"
+          onSubmit={createDoc}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.type === "discard" && (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message="This document has unsaved edits. Opening another document will lose them."
+          confirmLabel="Discard changes"
+          danger
+          onConfirm={() => loadDocument(dialog.id)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.type === "delete-doc" && (
+        <ConfirmDialog
+          title="Delete document?"
+          message={`"${title}" and all of its share links will be permanently deleted. This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={deleteDoc}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.type === "delete-asset" && (
+        <ConfirmDialog
+          title="Delete asset?"
+          message={`"${dialog.asset.filename}" will be removed. Documents that embed it will show a broken link.`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={async () => {
+            await api("DELETE", `/api/assets/${dialog.asset.id}`);
+            refreshAssets();
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog?.type === "share" && <ShareLinkDialog url={dialog.url} onClose={() => setDialog(null)} />}
     </div>
-  );
-}
-
-function Preview({ markdown, active, view }) {
-  const ref = useRef(null);
-
-  // Debounced re-render on edits; immediate re-render when the mobile
-  // Preview tab activates (diagrams can't be measured while hidden).
-  useEffect(() => {
-    if (!active) return;
-    const timer = setTimeout(() => renderDocument(ref.current, markdown), view === "preview" ? 0 : 350);
-    return () => clearTimeout(timer);
-  }, [markdown, active, view]);
-
-  return active ? (
-    <div ref={ref} className="rendered" />
-  ) : (
-    <div className="rendered">
-      <div className="empty-state">Select or create a document to get started.</div>
-    </div>
-  );
-}
-
-function DocsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h16M4 12h16M4 18h10" />
-    </svg>
-  );
-}
-function EditIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-    </svg>
-  );
-}
-function PreviewIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z" />
-      <circle cx="12" cy="12" r="2.8" />
-    </svg>
   );
 }
