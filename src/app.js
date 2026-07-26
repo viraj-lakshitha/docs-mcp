@@ -162,11 +162,17 @@ app.get("/api/share/:token", ah(async (req, res) => {
     : res.status(404).json({ error: "invalid or revoked link" });
 }));
 
-// Local dev only — on Vercel a rewrite maps /s/:token to the static share.html.
-app.get("/s/:token", (req, res) => res.sendFile(path.join(root, "public", "share.html")));
-
-// Local dev only — on Vercel, public/ (including vendor libs) is served by the CDN.
+// The React app (built by `npm run build` into public/) is served statically;
+// any other GET falls through to index.html so client-side routes like /login
+// and /s/:token deep-link correctly. On Vercel the CDN + rewrites do the same.
 app.use(express.static(path.join(root, "public")));
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/") || req.path.startsWith("/oauth/") || req.path.startsWith("/a/") ||
+      req.path === "/mcp" || req.path.startsWith("/.well-known/")) {
+    return next();
+  }
+  res.sendFile(path.join(root, "public", "index.html"));
+});
 
 app.use((err, req, res, next) => {
   console.error(err);

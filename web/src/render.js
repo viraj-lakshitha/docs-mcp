@@ -1,34 +1,25 @@
-// Shared document renderer used by the editor preview and the share page.
-// Markdown via marked; ```mermaid fences via mermaid; ```excalidraw fences
-// (scene JSON) via Excalidraw's exportToSvg.
-// All libraries are served locally from /vendor (see web-server.js), so the
-// app has no CDN dependency.
-import { marked } from "/vendor/marked.esm.js";
-import mermaid from "/vendor/mermaid/mermaid.esm.min.mjs";
+// Document renderer shared by the editor preview and the share page.
+// Markdown via marked; ```mermaid and ```excalidraw fences become SVG.
+// mermaid and excalidraw are dynamically imported so they land in separate
+// chunks and only load when a document actually uses them.
+import { marked } from "marked";
 
-mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
+window.EXCALIDRAW_ASSET_PATH = "/";
 
-// Excalidraw ships as a UMD bundle that expects React globals, so load the
-// three scripts in order the first time a scene needs rendering.
-window.EXCALIDRAW_ASSET_PATH = "/vendor/excalidraw/";
-let excalidrawReady = null;
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = () => reject(new Error(`failed to load ${src}`));
-    document.head.append(s);
+let mermaidPromise = null;
+async function getMermaid() {
+  mermaidPromise ??= import("mermaid").then((m) => {
+    const mermaid = m.default;
+    mermaid.initialize({ startOnLoad: false, theme: "neutral", securityLevel: "loose" });
+    return mermaid;
   });
+  return mermaidPromise;
 }
-async function loadExcalidraw() {
-  excalidrawReady ??= (async () => {
-    await loadScript("/vendor/react.js");
-    await loadScript("/vendor/react-dom.js");
-    await loadScript("/vendor/excalidraw/excalidraw.production.min.js");
-    return window.ExcalidrawLib;
-  })();
-  return excalidrawReady;
+
+let excalidrawPromise = null;
+async function getExcalidraw() {
+  excalidrawPromise ??= import("@excalidraw/excalidraw");
+  return excalidrawPromise;
 }
 
 const FENCE_RE = /```(mermaid|excalidraw)[^\S\n]*\n([\s\S]*?)```/g;
@@ -49,10 +40,11 @@ export async function renderDocument(container, markdown) {
     const { lang, code } = blocks[Number(el.dataset.block)];
     try {
       if (lang === "mermaid") {
+        const mermaid = await getMermaid();
         const { svg } = await mermaid.render(`mmd-${++renderSeq}`, code);
         el.innerHTML = svg;
       } else {
-        const { exportToSvg } = await loadExcalidraw();
+        const { exportToSvg } = await getExcalidraw();
         const scene = JSON.parse(code);
         const svg = await exportToSvg({
           elements: scene.elements ?? [],

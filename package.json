@@ -4,23 +4,19 @@
   "description": "Notes by Optiq Labs — MCP server + web app for creating documents with Claude: markdown, Mermaid, Excalidraw, assets, and view-only share links",
   "type": "module",
   "scripts": {
-    "postinstall": "node scripts/copy-vendor.mjs",
+    "build": "npm install --prefix web && npm run build --prefix web",
     "web": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.js",
+    "dev:web": "npm run dev --prefix web",
     "dev:db": "node scripts/dev-db.mjs"
   },
   "engines": {
     "node": "22.x"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.17.6",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@vercel/blob": "^2.6.1",
     "express": "^4.21.2",
-    "marked": "^12.0.2",
-    "mermaid": "^10.9.6",
     "pg": "^8.22.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
     "zod": "^3.24.0"
   },
   "devDependencies": {
