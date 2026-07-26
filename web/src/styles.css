@@ -84,6 +84,18 @@ a { color: var(--color-accent); }
 .input--invalid { border-color: var(--color-danger); }
 .input--invalid:focus { box-shadow: var(--focus-ring-danger); }
 
+/* Browser autofill (email/password fields) forces its own background and
+   text color via UA styles that ignore normal background/color properties;
+   override with the box-shadow inset trick so autofilled fields still match
+   the light design instead of showing mismatched/low-contrast autofill colors. */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-text);
+  box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  transition: background-color 999999s ease-in-out 0s;
+}
+
 .field { display: flex; flex-direction: column; gap: var(--space-1); }
 .field__label { font-size: var(--text-md); font-weight: var(--weight-semibold); }
 .field__hint { font-size: var(--text-sm); color: var(--color-muted); }
