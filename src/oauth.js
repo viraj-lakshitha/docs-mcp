@@ -73,6 +73,9 @@ function consentPage({ client, user, params }) {
   <style>
     /* Self-contained: the SPA's stylesheet is hash-named, so this server-
        rendered page carries its own copy of the consent styles. */
+    /* Light-only design: without this, dark-mode Safari paints form controls
+       with its dark UA palette (white button text on our white background). */
+    :root { color-scheme: light; }
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -103,7 +106,8 @@ function consentPage({ client, user, params }) {
     .consent-actions { display: flex; gap: 10px; justify-content: flex-end; }
     .consent-actions button {
       font: inherit; padding: 9px 18px; border: 1px solid #e2e0dc; border-radius: 8px;
-      background: #fff; cursor: pointer;
+      background: #fff; color: #1f1e1c; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
     }
     .consent-actions button:hover { border-color: #b3562e; color: #b3562e; }
     .consent-actions button.primary { background: #b3562e; border-color: #b3562e; color: #fff; }

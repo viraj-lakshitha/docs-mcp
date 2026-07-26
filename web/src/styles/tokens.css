@@ -12,6 +12,11 @@
    three values in sync with breakpoints.js.)
    ============================================================ */
 :root {
+  /* Light-only design: without this, dark-mode browsers (notably iOS Safari)
+     paint form controls with their dark UA palette — e.g. white default
+     button text on our white backgrounds. */
+  color-scheme: light;
+
   /* --- typography --- */
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
