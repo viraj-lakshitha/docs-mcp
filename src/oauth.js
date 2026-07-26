@@ -69,7 +69,7 @@ function consentPage({ client, user, params }) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Authorize ${escapeHtml(client.name)} — docs-mcp</title>
+  <title>Authorize ${escapeHtml(client.name)} — Notes by Optiq Labs</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body class="login-body">
@@ -79,6 +79,7 @@ function consentPage({ client, user, params }) {
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
       </svg>
     </div>
+    <div class="brand consent-brand">Notes <span class="brand-sub">by Optiq Labs</span></div>
     <h1><strong>${escapeHtml(client.name)}</strong> wants to access your documents</h1>
     <p class="consent-sub">Signed in as <strong>${escapeHtml(user.email)}</strong></p>
     <ul class="consent-scopes">

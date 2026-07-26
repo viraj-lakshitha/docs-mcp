@@ -1,8 +1,8 @@
-# docs-mcp
+# Notes <sub>by [Optiq Labs](https://optiqlabs.com)</sub>
 
 Create documents with Claude. An MCP server gives Claude full document/asset
 CRUD, and a companion web app lets you edit, preview, and share the results
-with **view-only links**.
+with **view-only links**. (Repository: `docs-mcp`.)
 
 ## Features
 
@@ -91,6 +91,7 @@ Then ask Claude things like:
 
 | Tool | Purpose |
 | --- | --- |
+| `get_instructions` | Full usage guide: document format, diagram fences, assets, sharing rules (also served as MCP server `instructions` at initialize) |
 | `create_document` / `get_document` / `list_documents` / `update_document` / `delete_document` | Document CRUD |
 | `upload_asset` / `list_assets` / `delete_asset` | Asset CRUD (base64 upload) |
 | `share_document` / `list_shares` / `revoke_share` | View-only share links |

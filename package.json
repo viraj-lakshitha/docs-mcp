@@ -1,7 +1,7 @@
 {
   "name": "docs-mcp",
   "version": "0.1.0",
-  "description": "MCP server + web app for creating documents with Claude: markdown, Mermaid, Excalidraw, assets, and view-only share links",
+  "description": "Notes by Optiq Labs — MCP server + web app for creating documents with Claude: markdown, Mermaid, Excalidraw, assets, and view-only share links",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/copy-vendor.mjs",

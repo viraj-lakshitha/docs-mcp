@@ -4,10 +4,89 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as store from "./db.js";
 
+const INSTRUCTIONS = `# Notes by Optiq Labs — MCP usage guide
+
+Notes is a document workspace. Through this MCP server you create and manage
+markdown documents, upload assets, and publish view-only share links. Every
+tool acts as the account that authorized this connection; you only ever see
+that user's documents.
+
+## Typical workflow
+
+1. create_document with a title and markdown content — the response includes
+   the document id and an editor_url the user can open in a browser.
+2. Refine with update_document. IMPORTANT: content is a full replacement, not
+   a patch — call get_document first, modify that text, and send it back whole.
+3. When the user wants to share it, call share_document and give them the
+   returned url. Anyone with the link can read the rendered document but can
+   never edit it. revoke_share kills a link immediately.
+
+## Document format
+
+Documents are GitHub-flavored markdown with two special fenced code blocks:
+
+### Mermaid diagrams
+
+\`\`\`mermaid
+flowchart LR
+  Client --> API --> Database
+\`\`\`
+
+Any Mermaid diagram type works (flowchart, sequenceDiagram, classDiagram,
+erDiagram, gantt, pie, stateDiagram-v2, ...). Prefer Mermaid for boxes-and-
+arrows diagrams — it is compact and easy to update later.
+
+### Excalidraw sketches
+
+A fenced block whose body is an Excalidraw scene JSON — the same format as
+Excalidraw's "Save to file" export:
+
+\`\`\`excalidraw
+{"elements": [{"id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 200,
+"height": 90, "angle": 0, "strokeColor": "#1e1e1e", "backgroundColor":
+"transparent", "fillStyle": "solid", "strokeWidth": 2, "roughness": 1,
+"opacity": 100, "seed": 1, "version": 1, "versionNonce": 1, "isDeleted":
+false, "groupIds": [], "frameId": null, "boundElements": null, "updated": 1,
+"link": null, "locked": false}], "appState": {}, "files": {}}
+\`\`\`
+
+Elements need the full set of fields shown above. Use type "rectangle",
+"ellipse", "diamond", "arrow", "line", or "text" (text elements additionally
+need text, fontSize, fontFamily, textAlign, verticalAlign, containerId,
+originalText, lineHeight, baseline). Reach for Excalidraw when a hand-drawn
+look is wanted; otherwise Mermaid is usually the better tool.
+
+## Images and assets
+
+1. upload_asset with filename, mime_type, and base64_data.
+2. Embed the returned path in any document: ![alt text](/a/<asset_id>).
+   Asset URLs are stable and also work on public share pages.
+3. delete_asset removes the file (documents referencing it will show a
+   broken image).
+
+## Sharing rules
+
+- share_document returns a fresh unguessable URL per call; a document can
+  have many active links.
+- Links are strictly view-only: viewers get rendered HTML, never an editor,
+  and cannot reach any other document.
+- list_shares shows what is live; revoke_share disables a link permanently.
+
+## Good to know
+
+- list_documents returns metadata only; get_document returns full content.
+- delete_document also revokes all of its share links. It cannot be undone —
+  confirm with the user before deleting anything they did not just create.
+- Titles are plain text; the first markdown heading inside content is
+  independent of the title field.`;
+
 // All tools act as the given user: userId comes from a verified OAuth
 // access token presented to /mcp.
 export function buildServer(userId) {
-  const server = new McpServer({ name: "docs-mcp", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "notes-by-optiq-labs", version: "0.1.0" },
+    { instructions: INSTRUCTIONS }
+  );
 
   const json = (value) => ({
     content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
@@ -23,6 +102,17 @@ export function buildServer(userId) {
     '```excalidraw — an Excalidraw scene as JSON: {"elements": [...], "appState": {}, "files": {}}.',
     "Uploaded assets can be embedded with ![alt](/a/<asset_id>).",
   ].join(" ");
+
+  server.registerTool(
+    "get_instructions",
+    {
+      title: "Get usage instructions",
+      description:
+        "Returns the complete guide for using Notes via MCP: the document format (markdown, ```mermaid and ```excalidraw fences), asset embedding, sharing rules, and recommended workflow. Call this first if you are unsure how to structure content.",
+      inputSchema: {},
+    },
+    async () => ({ content: [{ type: "text", text: INSTRUCTIONS }] })
+  );
 
   // ---- document CRUD ----
 
