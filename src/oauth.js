@@ -70,11 +70,54 @@ function consentPage({ client, user, params }) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Authorize ${escapeHtml(client.name)} — Notes by Optiq Labs</title>
-  <link rel="stylesheet" href="/style.css" />
+  <style>
+    /* Self-contained: the SPA's stylesheet is hash-named, so this server-
+       rendered page carries its own copy of the consent styles. */
+    /* Light-only design: without this, dark-mode Safari paints form controls
+       with its dark UA palette (white button text on our white background). */
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #1f1e1c; display: grid; place-items: center; min-height: 100vh; padding: 24px;
+      background:
+        radial-gradient(600px 400px at 15% 10%, rgba(179, 86, 46, 0.10), transparent 60%),
+        radial-gradient(700px 500px at 90% 90%, rgba(179, 86, 46, 0.08), transparent 60%),
+        #f7f7f5;
+    }
+    .consent-card {
+      width: min(430px, 100%); background: #fff; border: 1px solid #e2e0dc; border-radius: 16px;
+      padding: 34px 36px; box-shadow: 0 18px 50px -18px rgba(31,30,28,.25), 0 2px 8px rgba(31,30,28,.05);
+    }
+    .consent-logo {
+      width: 48px; height: 48px; border-radius: 12px; background: #b3562e; color: #fff;
+      display: grid; place-items: center; margin-bottom: 12px;
+    }
+    .consent-brand { font-size: 15px; font-weight: 700; margin-bottom: 14px; color: #7a766f; }
+    .brand-sub { font-size: .62em; font-weight: 500; opacity: .72; white-space: nowrap; }
+    h1 { font-size: 19px; margin: 0 0 6px; font-weight: 500; line-height: 1.4; }
+    .consent-sub { margin: 0 0 18px; color: #7a766f; font-size: 13.5px; }
+    .consent-scopes {
+      list-style: none; margin: 0 0 22px; padding: 14px 16px; background: #f7f7f5;
+      border: 1px solid #e2e0dc; border-radius: 10px; display: grid; gap: 8px;
+    }
+    .consent-scopes li { font-size: 13.5px; padding-left: 22px; position: relative; }
+    .consent-scopes li::before { content: "\\2713"; position: absolute; left: 2px; color: #b3562e; font-weight: 700; }
+    .consent-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .consent-actions button {
+      font: inherit; padding: 9px 18px; border: 1px solid #e2e0dc; border-radius: 8px;
+      background: #fff; color: #1f1e1c; cursor: pointer;
+      -webkit-appearance: none; appearance: none;
+    }
+    .consent-actions button:hover { border-color: #b3562e; color: #b3562e; }
+    .consent-actions button.primary { background: #b3562e; border-color: #b3562e; color: #fff; }
+    .consent-actions button.primary:hover { opacity: .9; color: #fff; }
+    @media (max-width: 640px) { .consent-card { padding: 26px 22px; } }
+  </style>
 </head>
-<body class="login-body">
+<body>
   <main class="consent-card">
-    <div class="login-logo consent-logo" aria-hidden="true">
+    <div class="consent-logo" aria-hidden="true">
       <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>
       </svg>
@@ -154,7 +197,7 @@ export function oauthRouter() {
     const user = await sessionUser(req);
     if (!user) {
       const next = encodeURIComponent(req.originalUrl);
-      return res.redirect(302, `/login.html?next=${next}`);
+      return res.redirect(302, `/login?next=${next}`);
     }
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");

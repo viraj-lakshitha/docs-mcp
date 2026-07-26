@@ -35,8 +35,13 @@ Requires Node.js 22.x.
 ```bash
 npm install
 vercel env pull .env.development.local   # brings DATABASE_URL + BLOB_READ_WRITE_TOKEN
-npm run web                              # web app on http://localhost:4680
+npm run build                            # builds the React app into public/
+npm run web                              # serves app + API on http://localhost:4680
 ```
+
+For frontend work with hot reload, run `npm run dev:web` in a second
+terminal — Vite serves the React app on :5173 and proxies API/OAuth/MCP
+traffic to the Express server on :4680.
 
 If you'd rather not point local dev at your Neon database, run
 `npm run dev:db` in another terminal (an in-process Postgres via PGlite) and
@@ -169,13 +174,14 @@ session cookie or an OAuth bearer token; `/mcp` requires the bearer token.
 
 ```
 api/index.js         # Vercel serverless entry (wraps src/app.js)
-vercel.json          # rewrites: /s/:token -> share.html, everything else -> /api
+vercel.json          # build config + rewrites (API paths -> function, rest -> SPA)
 src/db.js            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
 src/auth.js          # sessions, login/register routes, auth middleware
 src/oauth.js         # OAuth 2.1 provider: discovery, registration, consent, tokens
 src/mcp.js           # MCP tool definitions (served over /mcp)
-src/app.js           # Express app: REST API, /mcp, OAuth routes, share pages
+src/app.js           # Express app: REST API, /mcp, OAuth routes, SPA fallback
 src/web-server.js    # local entry point (app.listen)
-scripts/             # copy-vendor (postinstall), dev-db (local PGlite Postgres)
-public/              # editor UI, share page, renderer; vendor/ filled on install
+web/                 # React app (Vite): pages + design system (see web/DESIGN.md)
+scripts/dev-db.mjs   # local PGlite Postgres for development
+public/              # build output of web/ (gitignored; created by npm run build)
 ```
