@@ -7,7 +7,7 @@ import * as store from "./db.js";
 // All tools act as the given user: userId comes from a verified OAuth
 // access token presented to /mcp.
 export function buildServer(userId) {
-  const server = new McpServer({ name: "docs-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: "notes-by-optiq-labs", version: "0.1.0" });
 
   const json = (value) => ({
     content: [{ type: "text", text: JSON.stringify(value, null, 2) }],

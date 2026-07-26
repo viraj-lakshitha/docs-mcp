@@ -1,8 +1,8 @@
-# docs-mcp
+# Notes <sub>by [Optiq Labs](https://optiqlabs.com)</sub>
 
 Create documents with Claude. An MCP server gives Claude full document/asset
 CRUD, and a companion web app lets you edit, preview, and share the results
-with **view-only links**.
+with **view-only links**. (Repository: `docs-mcp`.)
 
 ## Features
 

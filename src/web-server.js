@@ -4,5 +4,5 @@ import { baseUrl } from "./db.js";
 
 const port = Number(process.env.PORT || 4680);
 app.listen(port, () => {
-  console.log(`docs-mcp web app on ${baseUrl()} (port ${port})`);
+  console.log(`Notes by Optiq Labs running on ${baseUrl()} (port ${port})`);
 });
