@@ -91,6 +91,7 @@ Then ask Claude things like:
 
 | Tool | Purpose |
 | --- | --- |
+| `get_instructions` | Full usage guide: document format, diagram fences, assets, sharing rules (also served as MCP server `instructions` at initialize) |
 | `create_document` / `get_document` / `list_documents` / `update_document` / `delete_document` | Document CRUD |
 | `upload_asset` / `list_assets` / `delete_asset` | Asset CRUD (base64 upload) |
 | `share_document` / `list_shares` / `revoke_share` | View-only share links |
