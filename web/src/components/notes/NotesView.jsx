@@ -1,22 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../api.js";
-import { isMobile } from "../breakpoints.js";
-import { Button } from "../components/Button.jsx";
-import { ConfirmDialog, PromptDialog, ShareLinkDialog } from "../components/Dialog.jsx";
-import { Sidebar } from "../components/editor/Sidebar.jsx";
-import { MobileNav } from "../components/editor/MobileNav.jsx";
-import { PreviewPane } from "../components/editor/PreviewPane.jsx";
+import { api } from "../../api.js";
+import { isMobile } from "../../breakpoints.js";
+import { Button } from "../Button.jsx";
+import { ConfirmDialog, PromptDialog, ShareLinkDialog } from "../Dialog.jsx";
+import { ListIcon, EditIcon, EyeIcon } from "../Icons.jsx";
+import { DocList } from "./DocList.jsx";
+import { PreviewPane } from "./PreviewPane.jsx";
 
-export default function Editor() {
-  const [me, setMe] = useState(null);
+const SUBVIEWS = [
+  { key: "list", label: "List", Icon: ListIcon },
+  { key: "edit", label: "Edit", Icon: EditIcon },
+  { key: "preview", label: "Preview", Icon: EyeIcon },
+];
+
+// The Notes section: document list + editor + live preview. On mobile only
+// one pane shows at a time, switched with the segmented control below the
+// top bar; on desktop all three render side by side.
+export function NotesView() {
   const [docs, setDocs] = useState([]);
-  const [assets, setAssets] = useState([]);
   const [currentId, setCurrentId] = useState(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [status, setStatus] = useState("");
-  const [view, setView] = useState("docs");
+  const [subview, setSubview] = useState("list");
   const [dialog, setDialog] = useState(null); // {type, ...payload}
   const contentRef = useRef(null);
   const statusTimer = useRef(null);
@@ -27,13 +34,7 @@ export default function Editor() {
     statusTimer.current = setTimeout(() => setStatus(""), 4000);
   }, []);
 
-  // The mobile tab bar CSS keys off body[data-view].
-  useEffect(() => {
-    document.body.dataset.view = view;
-  }, [view]);
-
   const refreshDocs = useCallback(async () => setDocs(await api("GET", "/api/documents")), []);
-  const refreshAssets = useCallback(async () => setAssets(await api("GET", "/api/assets")), []);
 
   const loadDocument = useCallback(async (id) => {
     try {
@@ -43,7 +44,7 @@ export default function Editor() {
       setContent(doc.content);
       setDirty(false);
       location.hash = doc.id;
-      if (isMobile()) setView("edit");
+      if (isMobile()) setSubview("edit");
     } catch (err) {
       flash(err.message);
     }
@@ -59,9 +60,7 @@ export default function Editor() {
 
   useEffect(() => {
     (async () => {
-      const user = await api("GET", "/api/auth/me");
-      setMe(user);
-      await Promise.all([refreshDocs(), refreshAssets()]);
+      await refreshDocs();
       if (location.hash.length > 1) loadDocument(location.hash.slice(1));
     })().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,7 +99,7 @@ export default function Editor() {
     setDirty(false);
     location.hash = "";
     refreshDocs();
-    if (isMobile()) setView("docs");
+    if (isMobile()) setSubview("list");
   };
 
   const share = async () => {
@@ -108,55 +107,17 @@ export default function Editor() {
     setDialog({ type: "share", url: shareLink.url });
   };
 
-  const logout = async () => {
-    await api("POST", "/api/auth/logout");
-    location.href = "/login";
-  };
-
-  const uploadAsset = async (file) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let binary = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    }
-    await api("POST", "/api/assets", {
-      filename: file.name,
-      mime: file.type || "application/octet-stream",
-      data: btoa(binary),
-    });
-    flash(`Uploaded ${file.name}`);
-    refreshAssets();
-  };
-
-  const insertAsset = (asset) => {
-    const el = contentRef.current;
-    if (!el || !currentId) return;
-    const text = asset.mime.startsWith("image/")
-      ? `![${asset.filename}](${asset.url})`
-      : `[${asset.filename}](${asset.url})`;
-    const { selectionStart: start, selectionEnd: end } = el;
-    setContent(content.slice(0, start) + text + content.slice(end));
-    setDirty(true);
-    requestAnimationFrame(() => {
-      el.selectionStart = el.selectionEnd = start + text.length;
-      el.focus();
-    });
-  };
-
   return (
-    <div className="app">
-      <Sidebar
-        me={me}
-        docs={docs}
-        assets={assets}
-        currentId={currentId}
-        onNewDoc={() => setDialog({ type: "new" })}
-        onOpenDoc={openDocument}
-        onUploadAsset={uploadAsset}
-        onInsertAsset={insertAsset}
-        onDeleteAsset={(asset) => setDialog({ type: "delete-asset", asset })}
-        onLogout={logout}
-      />
+    <div className="notes-view" data-subview={subview}>
+      <nav className="notes-subnav" aria-label="Notes views">
+        {SUBVIEWS.map(({ key, label, Icon }) => (
+          <Button key={key} active={subview === key} onClick={() => setSubview(key)}>
+            <Icon size={16} /> {label}
+          </Button>
+        ))}
+      </nav>
+
+      <DocList docs={docs} currentId={currentId} onOpenDoc={openDocument} onNewDoc={() => setDialog({ type: "new" })} />
 
       <section className="editor-pane">
         <div className="pane-header">
@@ -190,10 +151,8 @@ export default function Editor() {
           <span className="pane-header__spacer" />
           <Button disabled={!currentId} onClick={share}>Share view-only</Button>
         </div>
-        <PreviewPane markdown={content} active={currentId !== null} view={view} />
+        <PreviewPane markdown={content} active={currentId !== null} view={subview} />
       </section>
-
-      <MobileNav view={view} onChange={setView} />
 
       {dialog?.type === "new" && (
         <PromptDialog
@@ -221,19 +180,6 @@ export default function Editor() {
           confirmLabel="Delete"
           danger
           onConfirm={deleteDoc}
-          onClose={() => setDialog(null)}
-        />
-      )}
-      {dialog?.type === "delete-asset" && (
-        <ConfirmDialog
-          title="Delete asset?"
-          message={`"${dialog.asset.filename}" will be removed. Documents that embed it will show a broken link.`}
-          confirmLabel="Delete"
-          danger
-          onConfirm={async () => {
-            await api("DELETE", `/api/assets/${dialog.asset.id}`);
-            refreshAssets();
-          }}
           onClose={() => setDialog(null)}
         />
       )}

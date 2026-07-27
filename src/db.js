@@ -26,11 +26,15 @@ const pool = new pg.Pool({
 
 let schemaReady;
 function ensureSchema() {
+  // A transient connection error during init (e.g. a brief Neon blip on a
+  // warm serverless instance) must not poison every future request — clear
+  // the cached promise on failure so the next call retries from scratch.
   schemaReady ??= (async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id            TEXT PRIMARY KEY,
         email         TEXT NOT NULL UNIQUE,
+        name          TEXT,
         password_hash TEXT NOT NULL,
         created_at    TEXT NOT NULL
       )`);
@@ -104,7 +108,11 @@ function ensureSchema() {
     await pool.query("ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id TEXT");
     await pool.query("ALTER TABLE assets ADD COLUMN IF NOT EXISTS user_id TEXT");
     await pool.query("ALTER TABLE shares ADD COLUMN IF NOT EXISTS user_id TEXT");
-  })();
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS name TEXT");
+  })().catch((err) => {
+    schemaReady = undefined;
+    throw err;
+  });
   return schemaReady;
 }
 
@@ -160,8 +168,23 @@ export async function getUserByEmail(email) {
 }
 
 export async function getUserById(id) {
-  const rows = await q("SELECT id, email, created_at FROM users WHERE id = $1", [id]);
+  const rows = await q("SELECT id, email, name, created_at FROM users WHERE id = $1", [id]);
   return rows[0] ?? null;
+}
+
+// Updates the profile fields provided (undefined fields are left unchanged).
+// Returns null if the new email collides with a different account.
+export async function updateUser(id, { name, email }) {
+  const current = await q("SELECT * FROM users WHERE id = $1", [id]);
+  if (!current[0]) return null;
+  const nextEmail = email !== undefined ? email.toLowerCase().trim() : current[0].email;
+  if (nextEmail !== current[0].email) {
+    const clash = await getUserByEmail(nextEmail);
+    if (clash && clash.id !== id) return "email_taken";
+  }
+  const nextName = name !== undefined ? (name.trim() || null) : current[0].name;
+  await q("UPDATE users SET name = $1, email = $2 WHERE id = $3", [nextName, nextEmail, id]);
+  return getUserById(id);
 }
 
 // ---- sessions (browser login) ----
@@ -286,6 +309,31 @@ export async function rotateRefreshToken(raw) {
   );
   if (!rows[0]) return null;
   return createOAuthTokens({ userId: rows[0].user_id, clientId: rows[0].client_id, scope: rows[0].scope });
+}
+
+// "Connected" means at least one non-revoked, unexpired-refresh token exists
+// for that client — i.e. an MCP client (e.g. a Claude connector) that can
+// currently act as this user. Shown in Settings → Integrations.
+export async function listConnections(userId) {
+  return q(
+    `SELECT c.id AS client_id, c.name AS client_name,
+            MIN(t.created_at) AS connected_at,
+            COUNT(*) AS active_tokens
+       FROM oauth_tokens t
+       JOIN oauth_clients c ON c.id = t.client_id
+      WHERE t.user_id = $1 AND t.revoked = FALSE AND t.refresh_expires_at > $2
+      GROUP BY c.id, c.name
+      ORDER BY connected_at DESC`,
+    [userId, now()]
+  );
+}
+
+export async function revokeConnection(userId, clientId) {
+  const rows = await q(
+    "UPDATE oauth_tokens SET revoked = TRUE WHERE user_id = $1 AND client_id = $2 AND revoked = FALSE RETURNING id",
+    [userId, clientId]
+  );
+  return rows.length > 0;
 }
 
 // ---- documents (scoped to owner) ----

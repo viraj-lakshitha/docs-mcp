@@ -21,8 +21,25 @@ export function Dialog({ title, onClose, children, actions }) {
   );
 }
 
-// Confirmation dialog for destructive or lossy actions.
+// Confirmation dialog for destructive or lossy actions. Awaits onConfirm
+// (which may be async) before closing, and stays open with an inline error
+// if it throws — so a failed delete/disconnect doesn't silently vanish.
 export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false, onConfirm, onClose }) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      await onConfirm();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
   return (
     <Dialog
       title={title}
@@ -30,20 +47,14 @@ export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger
       actions={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button
-            variant={danger ? "danger" : "primary"}
-            autoFocus
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
-          >
+          <Button variant={danger ? "danger" : "primary"} autoFocus loading={busy} onClick={confirm}>
             {confirmLabel}
           </Button>
         </>
       }
     >
       <p style={{ margin: 0 }}>{message}</p>
+      {error && <div className="alert" role="alert">{error}</div>}
     </Dialog>
   );
 }
@@ -51,11 +62,22 @@ export function ConfirmDialog({ title, message, confirmLabel = "Confirm", danger
 // Single-text-input dialog (e.g. naming a new document).
 export function PromptDialog({ title, label, placeholder, initialValue = "", submitLabel = "Create", onSubmit, onClose }) {
   const [value, setValue] = useState(initialValue);
-  const submit = () => {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
     if (!value.trim()) return;
-    onSubmit(value.trim());
-    onClose();
+    setError("");
+    setBusy(true);
+    try {
+      await onSubmit(value.trim());
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
   };
+
   return (
     <Dialog
       title={title}
@@ -63,7 +85,7 @@ export function PromptDialog({ title, label, placeholder, initialValue = "", sub
       actions={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" disabled={!value.trim()} onClick={submit}>{submitLabel}</Button>
+          <Button variant="primary" disabled={!value.trim()} loading={busy} onClick={submit}>{submitLabel}</Button>
         </>
       }
     >
@@ -80,6 +102,7 @@ export function PromptDialog({ title, label, placeholder, initialValue = "", sub
           />
         )}
       </Field>
+      {error && <div className="alert" role="alert">{error}</div>}
     </Dialog>
   );
 }
