@@ -13,6 +13,7 @@ with **view-only links**. (Repository: `docs-mcp`.)
 - **Excalidraw** — fenced ` ```excalidraw ` blocks containing a scene JSON render as hand-drawn SVG
 - **View-only sharing** — mint unguessable share links (`/s/<token>`); viewers get a rendered, read-only page and can be revoked at any time
 - **Login & per-user access** — email/password accounts with a browser login portal; documents, assets, and shares are private to their owner. MCP clients connect via OAuth (works as a Claude custom connector)
+- **App shell** — a persistent nav (sidebar on desktop, bottom bar on mobile) switches between three sections: **Notes** (the document list/editor/preview), **Settings** (edit your name/email; see and disconnect MCP integrations authorized on your account), and **Attachments** (every uploaded asset in one place, with copy-link and delete)
 - **Vercel-native** — deploys as a Vercel project: documents/shares in **Neon Postgres**, asset binaries in **Vercel Blob**, frontend + vendored renderer libraries on the CDN, API/MCP as a serverless function
 
 ## Deploy to Vercel
@@ -56,12 +57,20 @@ document.
 
 ## Accounts & login
 
-Open the app in a browser and you'll land on the login portal
-(`/login.html`): sign in or create an account (email + password, scrypt-hashed,
-30-day HttpOnly session cookie). Everything you create — documents, assets,
-share links — belongs to your account; other users can't see or touch it.
-Set `DOCS_MCP_DISABLE_SIGNUP=true` to close registration after your team has
+Open the app in a browser and you'll land on the login portal (`/login`):
+sign in or create an account (email + password, scrypt-hashed, 30-day
+HttpOnly session cookie). Everything you create — documents, assets, share
+links — belongs to your account; other users can't see or touch it. Set
+`DOCS_MCP_DISABLE_SIGNUP=true` to close registration after your team has
 accounts.
+
+Once signed in, the app is a three-section shell:
+
+- **Notes** — the document list, editor, and live preview (this is the main workspace)
+- **Settings** — edit your name and email, and see/disconnect the MCP clients (e.g. Claude) currently authorized on your account
+- **Attachments** — every asset you've uploaded in one place, with copy-link and delete
+
+On desktop these live behind a left nav rail; on mobile, a bottom tab bar switches sections (Notes has its own List/Edit/Preview sub-tabs at the top, since only that section needs them).
 
 ## Connect it to Claude (MCP over OAuth)
 
@@ -131,6 +140,8 @@ session cookie or an OAuth bearer token; `/mcp` requires the bearer token.
 | Method & path | Purpose |
 | --- | --- |
 | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` | Accounts & sessions (public) |
+| `PUT /api/auth/me` | Update your profile (name, email) |
+| `GET /api/connections`, `DELETE /api/connections/:clientId` | List/disconnect MCP integrations authorized on your account |
 | `GET /.well-known/oauth-authorization-server`, `GET /.well-known/oauth-protected-resource` | OAuth discovery metadata |
 | `POST /oauth/register`, `GET /oauth/authorize`, `POST /oauth/decision`, `POST /oauth/token` | OAuth flow (registration, consent, tokens) |
 | `GET/POST /api/documents`, `GET/PUT/DELETE /api/documents/:id` | Document CRUD |

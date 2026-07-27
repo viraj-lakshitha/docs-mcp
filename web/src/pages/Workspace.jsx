@@ -1,0 +1,42 @@
+import { useEffect, useState } from "react";
+import { api } from "../api.js";
+import { ShellSidebar } from "../components/shell/ShellSidebar.jsx";
+import { ShellMobileNav } from "../components/shell/ShellMobileNav.jsx";
+import { ShellMobileTopbar } from "../components/shell/ShellMobileTopbar.jsx";
+import { NotesView } from "../components/notes/NotesView.jsx";
+import { SettingsView } from "../components/settings/SettingsView.jsx";
+import { AttachmentsView } from "../components/attachments/AttachmentsView.jsx";
+
+// Top-level authenticated app shell: a persistent nav (sidebar on desktop,
+// bottom bar on mobile) switches between Notes, Settings, and Attachments —
+// only the active section's UI renders, so each view stays uncluttered by
+// controls that don't apply to it. (The URL hash is reserved for NotesView's
+// open-document id, so section choice lives in memory, not the address bar.)
+export default function Workspace() {
+  const [me, setMe] = useState(null);
+  const [section, setSection] = useState("notes");
+
+  useEffect(() => {
+    api("GET", "/api/auth/me").then(setMe).catch(() => {});
+  }, []);
+
+  const logout = async () => {
+    await api("POST", "/api/auth/logout");
+    location.href = "/login";
+  };
+
+  return (
+    <div className="shell">
+      <ShellSidebar me={me} section={section} onSelectSection={setSection} onLogout={logout} />
+      <ShellMobileTopbar />
+
+      <main className="shell-main">
+        {section === "notes" && <NotesView />}
+        {section === "settings" && <SettingsView me={me} onUpdated={setMe} />}
+        {section === "attachments" && <AttachmentsView />}
+      </main>
+
+      <ShellMobileNav section={section} onSelectSection={setSection} />
+    </div>
+  );
+}

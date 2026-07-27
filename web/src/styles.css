@@ -179,36 +179,103 @@ a { color: var(--color-accent); }
 /* ---------- primitive: empty state ---------- */
 .empty-state { margin: auto; color: var(--color-muted); text-align: center; padding: var(--space-8); }
 
-/* ---------- layout: editor ---------- */
-.app { display: grid; grid-template-columns: 260px 1fr 1fr; height: 100vh; height: 100dvh; }
-.mobile-nav { display: none; }
+/* ---------- primitive: card ---------- */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.card__title { margin: 0 0 2px; font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.card__desc { margin: 0; font-size: var(--text-md); color: var(--color-muted); }
+.card__body { padding: var(--space-5) var(--space-6); }
 
-.sidebar {
+/* ---------- layout: app shell ---------- */
+.shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; height: 100dvh; }
+.shell-mobile-topbar, .shell-mobile-nav { display: none; }
+
+.shell-sidebar {
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
-.sidebar__header {
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+.shell-sidebar__brand {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: var(--space-2);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
 }
-.sidebar__header .brand { font-size: var(--text-lg); font-weight: var(--weight-bold); }
-.sidebar__section-title {
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-  margin: 0;
-  padding: var(--space-2) var(--space-4) var(--space-1);
-  color: var(--color-muted);
+.shell-sidebar__brand .brand-logo { width: 30px; height: 30px; background: var(--color-accent-soft); color: var(--color-accent); }
+.shell-sidebar__brand .brand { font-size: var(--text-base); font-weight: var(--weight-bold); }
+
+.shell-nav { display: flex; flex-direction: column; gap: 2px; padding: var(--space-3); flex: 1; }
+.shell-nav__item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
+.shell-nav__item:hover { background: var(--color-bg); color: var(--color-text); }
+.shell-nav__item.active { background: var(--color-accent-soft); color: var(--color-accent-strong); font-weight: var(--weight-semibold); }
+
+.shell-sidebar__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+.user-email {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-main { display: flex; overflow: hidden; min-width: 0; }
+
+/* ---------- layout: notes view ---------- */
+.notes-view { display: grid; grid-template-columns: 240px 1fr 1fr; flex: 1; overflow: hidden; }
+.notes-subnav { display: none; }
+
+.notes-doclist {
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.notes-doclist__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.notes-doclist__title { font-size: var(--text-base); font-weight: var(--weight-semibold); margin: 0; }
 
 .doc-list { overflow-y: auto; flex: 1; margin: 0; padding: 0; list-style: none; }
 .doc-list li {
@@ -222,27 +289,6 @@ a { color: var(--color-accent); }
 .doc-list li.active { background: var(--color-bg); border-left-color: var(--color-accent); }
 .doc-list .title { display: block; font-weight: var(--weight-semibold); font-size: var(--text-base); }
 .doc-list .meta { font-size: var(--text-sm); color: var(--color-muted); }
-
-.assets-section { border-top: 1px solid var(--color-border); max-height: 40%; display: flex; flex-direction: column; }
-.asset-list { overflow-y: auto; margin: 0; padding: 0 0 var(--space-2); list-style: none; font-size: var(--text-md); }
-.asset-list li { display: flex; gap: var(--space-2); align-items: center; padding: var(--space-1) var(--space-4); }
-.asset-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.account-section { border-top: 1px solid var(--color-border); }
-.account-bar {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2) var(--space-4) var(--space-3);
-}
-.user-email {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 .editor-pane, .preview-pane { display: flex; flex-direction: column; overflow: hidden; }
 .editor-pane { border-right: 1px solid var(--color-border); }
@@ -311,6 +357,44 @@ a { color: var(--color-accent); }
   font-size: var(--text-md);
   white-space: pre-wrap;
 }
+
+/* ---------- page: settings & attachments ---------- */
+.page-view { flex: 1; overflow-y: auto; background: var(--color-bg); }
+.page-view__inner { max-width: 720px; margin: 0 auto; padding: var(--space-8) var(--space-6) 80px; display: grid; gap: var(--space-6); }
+.page-view__title { font-size: var(--text-2xl); margin: 0; }
+
+.settings-form { display: grid; gap: var(--space-4); max-width: 420px; }
+.settings-form__actions { display: flex; align-items: center; gap: var(--space-3); justify-content: flex-end; }
+
+.integration-list, .attachment-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.integration-list li, .attachment-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.integration-icon, .attachment-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+.integration-info, .attachment-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.integration-name, .attachment-name {
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-name { color: var(--color-text); text-decoration: none; }
+.attachment-name:hover { color: var(--color-accent); }
 
 /* ---------- page: login ---------- */
 .login-body {
@@ -422,27 +506,34 @@ a { color: var(--color-accent); }
    Responsive — breakpoints from tokens.css / breakpoints.js
    ============================================================ */
 
-/* lg: narrower desktops get a slim sidebar */
+/* lg: narrower desktops get slimmer sidebars */
 @media (max-width: 1150px) {
-  .app { grid-template-columns: 210px 1fr 1fr; }
+  .shell { grid-template-columns: 180px 1fr; }
+  .notes-view { grid-template-columns: 200px 1fr 1fr; }
 }
 
-/* md: phones & small tablets — one pane + bottom tab bar */
+/* md: phones & small tablets — one section/pane at a time + bottom nav */
 @media (max-width: 900px) {
-  .app { display: flex; flex-direction: column; }
-  .sidebar, .editor-pane, .preview-pane { display: none; flex: 1; min-height: 0; border-right: 0; }
-  .sidebar { width: 100%; }
-  body[data-view="docs"] .sidebar { display: flex; }
-  body[data-view="edit"] .editor-pane { display: flex; }
-  body[data-view="preview"] .preview-pane { display: flex; }
+  .shell { display: flex; flex-direction: column; }
+  .shell-sidebar { display: none; }
+  .shell-mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .shell-mobile-topbar .brand { font-size: var(--text-base); font-weight: var(--weight-bold); }
+  .shell-main { flex: 1; min-height: 0; }
 
-  .mobile-nav {
+  .shell-mobile-nav {
     display: flex;
     border-top: 1px solid var(--color-border);
     background: var(--color-surface);
     padding-bottom: env(safe-area-inset-bottom);
   }
-  .mobile-nav .btn {
+  .shell-mobile-nav .btn {
     flex: 1;
     flex-direction: column;
     gap: 3px;
@@ -455,7 +546,30 @@ a { color: var(--color-accent); }
     font-size: var(--text-xs);
     color: var(--color-muted);
   }
-  .mobile-nav .btn.active { color: var(--color-accent); }
+  .shell-mobile-nav .btn.active { color: var(--color-accent); }
+
+  /* Notes: doc list / editor / preview become one pane at a time, switched
+     by the segmented sub-nav (distinct from the section-level bottom nav). */
+  .notes-view { display: flex; flex-direction: column; width: 100%; }
+  .notes-subnav {
+    display: flex;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .notes-subnav .btn {
+    flex: 1;
+    height: 40px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+  .notes-subnav .btn.active { color: var(--color-accent); font-weight: var(--weight-semibold); }
+  .notes-doclist, .editor-pane, .preview-pane { display: none; flex: 1; min-height: 0; border-right: 0; }
+  .notes-view[data-subview="list"] .notes-doclist { display: flex; }
+  .notes-view[data-subview="edit"] .editor-pane { display: flex; }
+  .notes-view[data-subview="preview"] .preview-pane { display: flex; }
 
   /* touch-friendly controls; 16px inputs stop iOS zoom-on-focus */
   .btn { height: 38px; }
@@ -466,8 +580,10 @@ a { color: var(--color-accent); }
   .pane-header .input { flex: 1 1 100%; }
   .rendered { padding: var(--space-4); }
   .doc-list li { padding: var(--space-3) var(--space-4); }
-  .asset-list li { padding: var(--space-2) var(--space-4); }
-  .assets-section { max-height: 32%; }
+  .notes-doclist__header { padding: var(--space-3) var(--space-4); }
+
+  .page-view__inner { padding: var(--space-5) var(--space-4) 90px; }
+  .integration-list li, .attachment-list li { flex-wrap: wrap; }
 }
 
 /* sm: phones — compact login & share */

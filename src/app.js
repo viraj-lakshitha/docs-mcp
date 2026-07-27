@@ -76,6 +76,18 @@ app.post("/mcp", oauthCors, ah(async (req, res) => {
 app.get("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
 app.delete("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
 
+// ---- connected MCP integrations (Settings → Integrations) ----
+
+app.get("/api/connections", requireAuth, ah(async (req, res) => {
+  res.json(await store.listConnections(req.userId));
+}));
+
+app.delete("/api/connections/:clientId", requireAuth, ah(async (req, res) => {
+  (await store.revokeConnection(req.userId, req.params.clientId))
+    ? res.json({ disconnected: req.params.clientId })
+    : res.status(404).json({ error: "not found" });
+}));
+
 // ---- document CRUD (owner-scoped) ----
 
 app.get("/api/documents", requireAuth, ah(async (req, res) => {

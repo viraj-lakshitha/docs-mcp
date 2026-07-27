@@ -106,6 +106,19 @@ export function authRouter() {
     res.json(await store.getUserById(req.userId));
   }));
 
+  router.put("/me", requireAuth, ah(async (req, res) => {
+    const { name, email } = req.body ?? {};
+    if (email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "a valid email is required" });
+    }
+    if (name !== undefined && typeof name === "string" && name.length > 200) {
+      return res.status(400).json({ error: "name is too long" });
+    }
+    const user = await store.updateUser(req.userId, { name, email });
+    if (user === "email_taken") return res.status(409).json({ error: "an account with this email already exists" });
+    res.json(user);
+  }));
+
   return router;
 }
 

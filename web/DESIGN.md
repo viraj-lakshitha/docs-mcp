@@ -1,5 +1,22 @@
 # Notes — frontend design system
 
+## App shell
+
+`pages/Workspace.jsx` is the top-level authenticated page: a persistent nav
+(`components/shell/ShellSidebar` on desktop, `ShellMobileNav` + a compact
+`ShellMobileTopbar` on mobile) switches between three sections, each fully
+self-contained — only the active section's controls render, so Settings
+never shows editor buttons and vice versa:
+
+| Section | Component | Contents |
+| --- | --- | --- |
+| Notes | `components/notes/NotesView` | doc list (`DocList`) + editor + `PreviewPane`; owns its own mobile List/Edit/Preview sub-nav |
+| Settings | `components/settings/SettingsView` | `ProfileCard` (name/email, `PUT /api/auth/me`) + `IntegrationsCard` (`GET/DELETE /api/connections` — MCP clients like Claude authorized on this account) |
+| Attachments | `components/attachments/AttachmentsView` | every uploaded asset: upload, copy link, delete |
+
+Section choice lives in React state, not the URL — `NotesView` owns the hash
+(`#<document-id>`) for its own deep-linking, so the two don't collide.
+
 ## Tokens (`src/styles/tokens.css`)
 
 All visual values are CSS custom properties: color (`--color-*`), type scale
@@ -13,8 +30,8 @@ never use raw hex/px values.
 | Name | Width | Behavior |
 | --- | --- | --- |
 | `sm` | 640px | compact login/share/dialog padding, single-column login card |
-| `md` | 900px | editor collapses to one pane + bottom tab bar; touch-target sizing; 16px inputs (no iOS zoom) |
-| `lg` | 1150px | sidebar slims from 260px to 210px |
+| `md` | 900px | shell sidebar → bottom section nav; Notes collapses to one pane + its own List/Edit/Preview sub-nav; touch-target sizing; 16px inputs (no iOS zoom) |
+| `lg` | 1150px | shell sidebar 220→180px, Notes doc-list column 240→200px |
 
 JS and CSS share these values — change them in both files together.
 
@@ -24,18 +41,28 @@ JS and CSS share these values — change them in both files together.
 | --- | --- |
 | `Button` | variants `default/primary/danger/bare`, sizes `sm/md/lg`, `block`, `active`, `loading` (spinner + disabled) |
 | `Field` | label + input + hint/error with invalid styling; render-prop form for custom inputs |
+| `Card` | titled content panel (Settings/Attachments) — title, description, header actions, body |
 | `Dialog` | modal primitive (overlay, Escape/overlay-click dismiss) |
-| `ConfirmDialog` / `PromptDialog` / `ShareLinkDialog` | destructive confirms, single-input prompts, share-link display with copy |
+| `ConfirmDialog` / `PromptDialog` | await an async `onConfirm`/`onSubmit`; stay open and show an inline error if it rejects, so a failed delete/create/disconnect is never silently swallowed |
+| `ShareLinkDialog` | share-link display with copy-to-clipboard |
 | `Brand` / `BrandLogo` | wordmark ("Notes" + smaller "by Optiq Labs") and logo tile |
-| `Icons` | stroke icon set (list, edit, eye, eye-off, plus, x) |
+| `Icons` | stroke icon set (list, edit, eye, eye-off, plus, x, notes, settings, paperclip, user, plug, download, logout) |
 | `EmptyState` | centered muted placeholder |
-| `editor/Sidebar` | brand header, doc list, asset panel, account bar |
-| `editor/MobileNav` | bottom Docs/Edit/Preview tab bar (< `md`) |
-| `editor/PreviewPane` | debounced markdown + diagram renderer |
+| `shell/ShellSidebar` | brand, section nav (Notes/Settings/Attachments), account footer (name/email + logout) |
+| `shell/ShellMobileNav` | bottom section tab bar (< `md`) |
+| `shell/ShellMobileTopbar` | compact brand header shown when the sidebar is hidden (< `md`) |
+| `notes/DocList` | document list column with "+ New" |
+| `notes/NotesView` | doc list + editor + preview + its own mobile sub-nav |
+| `notes/PreviewPane` | debounced markdown + diagram renderer |
+| `settings/ProfileCard` / `settings/IntegrationsCard` | profile editing; MCP connection list + disconnect |
+| `attachments/AttachmentsView` | full attachment list: upload, copy link, delete |
 
 ## Conventions
 
 - Class naming: block__element and modifier `--` suffixes (`.btn--primary`,
   `.field__error`).
 - Native `prompt()`/`confirm()` are banned — use the dialog components.
+- Any action that can fail (API call inside a dialog's `onConfirm`/`onSubmit`)
+  must be `async` and let the error propagate — `ConfirmDialog`/`PromptDialog`
+  catch it, keep the dialog open, and show it inline. Don't fire-and-forget.
 - New UI must consume tokens and existing primitives before adding CSS.
