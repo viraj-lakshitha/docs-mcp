@@ -570,8 +570,17 @@ a { color: var(--color-accent); }
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
 }
-.landing-demo__chrome span { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--color-border); }
-.landing-demo__title { margin-left: var(--space-2); font-size: var(--text-sm); color: var(--color-muted); font-family: var(--font-mono); }
+.landing-demo__dot { width: 9px; height: 9px; border-radius: var(--radius-full); background: var(--color-border); flex-shrink: 0; }
+.landing-demo__title {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .landing-demo__body { padding: var(--space-5); min-height: 220px; }
 .landing-demo__body.rendered h1 { font-size: var(--text-xl); margin-top: 0; }
 

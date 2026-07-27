@@ -24,7 +24,7 @@ export function LandingDemo() {
   return (
     <div className="landing-demo">
       <div className="landing-demo__chrome">
-        <span /><span /><span />
+        <span className="landing-demo__dot" /><span className="landing-demo__dot" /><span className="landing-demo__dot" />
         <span className="landing-demo__title">design-notes.md</span>
       </div>
       <div ref={ref} className="landing-demo__body rendered" />
