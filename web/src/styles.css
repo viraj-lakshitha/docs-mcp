@@ -687,45 +687,17 @@ a { color: var(--color-accent); }
   .landing-hero__copy h1 { font-size: 34px; }
 }
 
-/* md: phones & small tablets — one section/pane at a time + bottom nav */
+/* md: tablets & phones — Notes collapses to one pane at a time (three
+   columns don't comfortably fit below ~1024px). The persistent sidebar nav
+   (not the bottom-tab chrome) is kept through this whole range; only true
+   phones (see the sm block below) swap it for the bottom nav + top bar, so
+   a tablet gets a genuine tablet layout instead of a stretched phone one. */
 @media (max-width: 900px) {
-  .shell { display: flex; flex-direction: column; }
-  .shell-sidebar { display: none; }
-  .shell-mobile-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-3) var(--space-4);
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-  }
-  .shell-mobile-topbar .brand { font-size: var(--text-base); font-weight: var(--weight-bold); }
   .shell-main { flex: 1; min-height: 0; }
 
-  .shell-mobile-nav {
-    display: flex;
-    border-top: 1px solid var(--color-border);
-    background: var(--color-surface);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .shell-mobile-nav .btn {
-    flex: 1;
-    flex-direction: column;
-    gap: 3px;
-    height: auto;
-    min-height: var(--touch-target);
-    padding: var(--space-2) var(--space-1);
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    font-size: var(--text-xs);
-    color: var(--color-muted);
-  }
-  .shell-mobile-nav .btn.active { color: var(--color-accent); }
-
   /* Notes: doc list / editor / preview become one pane at a time, switched
-     by the segmented sub-nav (distinct from the section-level bottom nav). */
-  .notes-view { display: flex; flex-direction: column; width: 100%; }
+     by the segmented sub-nav. */
+  .notes-view { display: flex; flex-direction: column; width: 100%; height: 100%; }
   .notes-subnav {
     display: flex;
     border-bottom: 1px solid var(--color-border);
@@ -772,8 +744,43 @@ a { color: var(--color-accent); }
   .landing-footer { flex-direction: column; text-align: center; }
 }
 
-/* sm: phones — compact login & share */
+/* sm: phones only — the persistent sidebar (kept through tablet widths in
+   the md block above) is too wide to coexist with content here, so it's
+   replaced by a compact top bar + bottom section-nav. */
 @media (max-width: 640px) {
+  .shell { display: flex; flex-direction: column; }
+  .shell-sidebar { display: none; }
+  .shell-mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+  .shell-mobile-topbar .brand { font-size: var(--text-base); font-weight: var(--weight-bold); }
+
+  .shell-mobile-nav {
+    display: flex;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-surface);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .shell-mobile-nav .btn {
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    height: auto;
+    min-height: var(--touch-target);
+    padding: var(--space-2) var(--space-1);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: var(--text-xs);
+    color: var(--color-muted);
+  }
+  .shell-mobile-nav .btn.active { color: var(--color-accent); }
+
   .login-card { grid-template-columns: 1fr; }
   .login-brand { padding: var(--space-6) 30px; }
   .login-features { display: none; }

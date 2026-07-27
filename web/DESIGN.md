@@ -38,9 +38,16 @@ never use raw hex/px values.
 
 | Name | Width | Behavior |
 | --- | --- | --- |
-| `sm` | 640px | compact login/share/dialog padding, single-column login card |
-| `md` | 900px | shell sidebar → bottom section nav; Notes collapses to one pane + its own List/Edit/Preview sub-nav; touch-target sizing; 16px inputs (no iOS zoom) |
+| `sm` | 640px | **phones only.** Shell sidebar → bottom section nav + compact top bar; compact login/share/dialog padding, single-column login card |
+| `md` | 900px | **tablets and phones.** Notes collapses to one pane at a time (three columns don't fit below ~1024px) with its own List/Edit/Preview sub-nav; touch-target sizing; 16px inputs (no iOS zoom). The shell sidebar itself is *not* affected here — it stays visible down through `sm` |
 | `lg` | 1150px | shell sidebar 220→180px, Notes doc-list column 240→200px |
+
+Tablet is a real third tier, not "mobile stretched wide": between `sm` and
+`md` (e.g. an iPad in portrait), the app keeps the persistent sidebar for
+navigation (like desktop) while Notes still shows one pane at a time (like
+phone) — the sidebar and the pane-collapse behavior are independent axes,
+gated by different breakpoints (`sm` vs `md`), not a single mobile/desktop
+switch. Only below `sm` does the sidebar itself give way to the bottom nav.
 
 JS and CSS share these values — change them in both files together.
 
