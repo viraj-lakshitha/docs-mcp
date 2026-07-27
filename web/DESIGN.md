@@ -1,5 +1,14 @@
 # Notes — frontend design system
 
+## Routes
+
+| Path | Page | Auth |
+| --- | --- | --- |
+| `/` | `pages/Landing.jsx` — public marketing page | none |
+| `/login` | `pages/Login.jsx` — sign in / create account. `?mode=signup` presets the tab; `?next=` returns to it (e.g. an OAuth consent screen) after auth | none |
+| `/app` | `pages/Workspace.jsx` — the app shell | required (redirects to `/login?next=/app` on 401) |
+| `/s/:token` | `pages/Share.jsx` — view-only document | none |
+
 ## App shell
 
 `pages/Workspace.jsx` is the top-level authenticated page: a persistent nav
@@ -39,7 +48,7 @@ JS and CSS share these values — change them in both files together.
 
 | Component | Purpose |
 | --- | --- |
-| `Button` | variants `default/primary/danger/bare`, sizes `sm/md/lg`, `block`, `active`, `loading` (spinner + disabled) |
+| `Button` | variants `default/primary/danger/bare`, sizes `sm/md/lg`, `block`, `active`, `loading` (spinner + disabled); `as="a"` renders a real link styled as a button (navigation CTAs) — use this instead of `<button onClick={() => location.href = …}>` |
 | `Field` | label + input + hint/error with invalid styling; render-prop form for custom inputs |
 | `Card` | titled content panel (Settings/Attachments) — title, description, header actions, body |
 | `Dialog` | modal primitive (overlay, Escape/overlay-click dismiss) |
@@ -56,6 +65,7 @@ JS and CSS share these values — change them in both files together.
 | `notes/PreviewPane` | debounced markdown + diagram renderer |
 | `settings/ProfileCard` / `settings/IntegrationsCard` | profile editing; MCP connection list + disconnect |
 | `attachments/AttachmentsView` | full attachment list: upload, copy link, delete |
+| `landing/LandingDemo` | live-rendered sample document (markdown + Mermaid) shown in the hero — proof, not a screenshot |
 
 ## Conventions
 

@@ -23,14 +23,17 @@ const COPY = {
   },
 };
 
-// After auth, return to ?next= (e.g. an OAuth consent screen) — local paths only.
+// After auth, return to ?next= (e.g. an OAuth consent screen) — local paths
+// only — or the app workspace.
 function nextDestination() {
   const raw = new URLSearchParams(location.search).get("next");
-  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+  return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app";
 }
 
 export default function Login() {
-  const [mode, setMode] = useState("login");
+  // Landing page CTAs can link straight to the "Create account" tab.
+  const initialMode = new URLSearchParams(location.search).get("mode") === "signup" ? "signup" : "login";
+  const [mode, setMode] = useState(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -90,8 +93,10 @@ export default function Login() {
     <div className="login-body">
       <main className="login-card">
         <aside className="login-brand">
-          <BrandLogo />
-          <Brand as="h2" />
+          <a href="/" className="login-brand__home" aria-label="Back to home">
+            <BrandLogo />
+            <Brand as="h2" />
+          </a>
           <p>Create documents with Claude.</p>
           <ul className="login-features">
             <li>Markdown with live preview</li>

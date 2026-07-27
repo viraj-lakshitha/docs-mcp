@@ -2,6 +2,11 @@
   "name": "docs-mcp",
   "version": "0.1.0",
   "description": "Notes by Optiq Labs — MCP server + web app for creating documents with Claude: markdown, Mermaid, Excalidraw, assets, and view-only share links",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/viraj-lakshitha/docs-mcp.git"
+  },
   "type": "module",
   "scripts": {
     "build": "npm install --prefix web && npm run build --prefix web",

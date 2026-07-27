@@ -1,8 +1,13 @@
 # Notes <sub>by [Optiq Labs](https://optiqlabs.com)</sub>
 
-Create documents with Claude. An MCP server gives Claude full document/asset
-CRUD, and a companion web app lets you edit, preview, and share the results
-with **view-only links**. (Repository: `docs-mcp`.)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+The workspace Claude actually keeps your documents in. Google Docs has no
+connection to Claude, and Claude's own chat can't render a Mermaid diagram or
+an Excalidraw sketch that survives past the conversation. Notes connects to
+Claude over MCP: every document, diagram, and sketch it creates lives in one
+organized, shareable workspace. (Repository: `docs-mcp`.) **Open source, MIT
+licensed** — see [Open source](#open-source--self-hosting) below.
 
 ## Features
 
@@ -14,6 +19,7 @@ with **view-only links**. (Repository: `docs-mcp`.)
 - **View-only sharing** — mint unguessable share links (`/s/<token>`); viewers get a rendered, read-only page and can be revoked at any time
 - **Login & per-user access** — email/password accounts with a browser login portal; documents, assets, and shares are private to their owner. MCP clients connect via OAuth (works as a Claude custom connector)
 - **App shell** — a persistent nav (sidebar on desktop, bottom bar on mobile) switches between three sections: **Notes** (the document list/editor/preview), **Settings** (edit your name/email; see and disconnect MCP integrations authorized on your account), and **Attachments** (every uploaded asset in one place, with copy-link and delete)
+- **Marketing landing page** — a public `/` page explaining what Notes is and why, with CTAs into sign-up/sign-in; the app itself lives at `/app`
 - **Vercel-native** — deploys as a Vercel project: documents/shares in **Neon Postgres**, asset binaries in **Vercel Blob**, frontend + vendored renderer libraries on the CDN, API/MCP as a serverless function
 
 ## Deploy to Vercel
@@ -49,11 +55,12 @@ If you'd rather not point local dev at your Neon database, run
 start the app with
 `DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5433/postgres npm run web`.
 
-Open http://localhost:4680 for the editor: document list on the left, markdown
-editor in the middle, live preview on the right. Upload assets from the
-sidebar and click **Insert** to drop a markdown reference at the cursor.
-**Share view-only** creates a link anyone can open to read (but not edit) the
-document.
+Open http://localhost:4680 — that's the public landing page. **Get started
+free** / **Sign in** take you to `/login`, which lands you on `/app`: the
+workspace shell, with **Notes** (document list, editor, live preview),
+**Settings** (profile, connected MCP integrations), and **Attachments**
+behind a persistent nav. **Share view-only** on any document creates a link
+anyone can open to read (but not edit).
 
 ## Accounts & login
 
@@ -184,6 +191,7 @@ session cookie or an OAuth bearer token; `/mcp` requires the bearer token.
 ## Project layout
 
 ```
+LICENSE              # MIT
 api/index.js         # Vercel serverless entry (wraps src/app.js)
 vercel.json          # build config + rewrites (API paths -> function, rest -> SPA)
 src/db.js            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
@@ -196,3 +204,24 @@ web/                 # React app (Vite): pages + design system (see web/DESIGN.m
 scripts/dev-db.mjs   # local PGlite Postgres for development
 public/              # build output of web/ (gitignored; created by npm run build)
 ```
+
+## Open source & self-hosting
+
+Notes is open source under the [MIT license](LICENSE). Everything is here —
+the MCP server and its tools, the OAuth 2.1 provider that makes it work as a
+Claude custom connector, the auth/sharing backend, and the React frontend.
+
+To self-host your own copy:
+
+1. Fork/clone the repo and create a Vercel project from it.
+2. Add the **Neon Postgres** and **Vercel Blob** integrations (they inject
+   `DATABASE_URL` and `BLOB_READ_WRITE_TOKEN` automatically — see
+   [Configuration](#configuration)).
+3. Deploy. Tables are created on first use; no migration step needed.
+4. Add your deployment as a custom connector in Claude (see
+   [Connect it to Claude](#connect-it-to-claude-mcp-over-oauth)).
+
+Issues and pull requests are welcome — see the [test plan checklists in past
+PRs](../../pulls?q=is%3Apr) for the kind of verification (curl against a real
+Postgres, a Playwright pass in light/dark and desktop/mobile) this project
+expects from a change before merging.
