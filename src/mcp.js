@@ -88,13 +88,37 @@ export function buildServer(userId) {
     { instructions: INSTRUCTIONS }
   );
 
-  const json = (value) => ({
-    content: [{ type: "text", text: JSON.stringify(value, null, 2) }],
-  });
+  // MCP clients (Claude Code, Claude Desktop, claude.ai) render a tool
+  // result's text content as Markdown, including live diagrams for fenced
+  // ```mermaid blocks. Returning the document body as real Markdown text
+  // (instead of it sitting escaped inside a JSON string) is what lets a
+  // freshly created or fetched document — diagrams included — render
+  // directly in the conversation instead of showing as an opaque JSON blob.
+  const md = (text) => ({ content: [{ type: "text", text }] });
   const error = (message) => ({
     content: [{ type: "text", text: message }],
     isError: true,
   });
+
+  const editorUrl = (id) => `${store.baseUrl()}/app#${id}`;
+
+  const docPreview = (doc, verb) => {
+    const parts = [
+      `${verb} **${doc.title}** — id \`${doc.id}\``,
+      `Editor: ${editorUrl(doc.id)}`,
+      "",
+      "---",
+      "",
+      doc.content?.trim() ? doc.content : "_(empty document)_",
+    ];
+    return md(parts.join("\n"));
+  };
+
+  const docTable = (docs) => {
+    if (docs.length === 0) return md("No documents yet.");
+    const rows = docs.map((d) => `| ${d.title.replace(/\|/g, "\\|")} | ${d.updated_at} | \`${d.id}\` |`);
+    return md(["| Title | Updated | id |", "| --- | --- | --- |", ...rows].join("\n"));
+  };
 
   const CONTENT_HINT = [
     "Document content is markdown. Two special fenced code blocks are rendered as diagrams:",
@@ -128,7 +152,7 @@ export function buildServer(userId) {
     },
     async ({ title, content }) => {
       const doc = await store.createDocument(userId, { title, content: content ?? "" });
-      return json({ ...doc, editor_url: `${store.baseUrl()}/#${doc.id}` });
+      return docPreview(doc, "Created");
     }
   );
 
@@ -139,7 +163,7 @@ export function buildServer(userId) {
       description: "List all documents (id, title, timestamps; no content).",
       inputSchema: {},
     },
-    async () => json(await store.listDocuments(userId))
+    async () => docTable(await store.listDocuments(userId))
   );
 
   server.registerTool(
@@ -151,7 +175,7 @@ export function buildServer(userId) {
     },
     async ({ id }) => {
       const doc = await store.getDocument(userId, id);
-      return doc ? json(doc) : error(`No document with id ${id}`);
+      return doc ? docPreview(doc, "Fetched") : error(`No document with id ${id}`);
     }
   );
 
@@ -168,7 +192,7 @@ export function buildServer(userId) {
     },
     async ({ id, title, content }) => {
       const doc = await store.updateDocument(userId, id, { title, content });
-      return doc ? json(doc) : error(`No document with id ${id}`);
+      return doc ? docPreview(doc, "Updated") : error(`No document with id ${id}`);
     }
   );
 
@@ -180,7 +204,9 @@ export function buildServer(userId) {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) =>
-      (await store.deleteDocument(userId, id)) ? json({ deleted: id }) : error(`No document with id ${id}`)
+      (await store.deleteDocument(userId, id))
+        ? md(`Deleted document \`${id}\` and its share links.`)
+        : error(`No document with id ${id}`)
   );
 
   // ---- asset CRUD ----
@@ -201,7 +227,15 @@ export function buildServer(userId) {
       const data = Buffer.from(base64_data, "base64");
       if (data.length === 0) return error("base64_data decoded to an empty file");
       try {
-        return json(await store.createAsset(userId, { filename, mime: mime_type, data }));
+        const asset = await store.createAsset(userId, { filename, mime: mime_type, data });
+        return md(
+          [
+            `Uploaded **${asset.filename}** — id \`${asset.id}\``,
+            `URL: ${store.baseUrl()}${asset.url}`,
+            "",
+            `Embed it in a document with: \`![${asset.filename}](${asset.url})\``,
+          ].join("\n")
+        );
       } catch (err) {
         return error(`Asset upload failed: ${err.message}`);
       }
@@ -215,7 +249,14 @@ export function buildServer(userId) {
       description: "List all uploaded assets (id, filename, mime, size, url).",
       inputSchema: {},
     },
-    async () => json(await store.listAssets(userId))
+    async () => {
+      const assets = await store.listAssets(userId);
+      if (assets.length === 0) return md("No assets yet.");
+      const rows = assets.map(
+        (a) => `| ${a.filename.replace(/\|/g, "\\|")} | ${a.mime} | ${a.size} | ${a.url} | \`${a.id}\` |`
+      );
+      return md(["| Filename | Type | Size (bytes) | URL | id |", "| --- | --- | --- | --- | --- |", ...rows].join("\n"));
+    }
   );
 
   server.registerTool(
@@ -226,7 +267,7 @@ export function buildServer(userId) {
       inputSchema: { id: z.string().describe("Asset id") },
     },
     async ({ id }) =>
-      (await store.deleteAsset(userId, id)) ? json({ deleted: id }) : error(`No asset with id ${id}`)
+      (await store.deleteAsset(userId, id)) ? md(`Deleted asset \`${id}\`.`) : error(`No asset with id ${id}`)
   );
 
   // ---- view-only sharing ----
@@ -240,8 +281,18 @@ export function buildServer(userId) {
       inputSchema: { id: z.string().describe("Document id") },
     },
     async ({ id }) => {
+      const doc = await store.getDocument(userId, id);
+      if (!doc) return error(`No document with id ${id}`);
       const share = await store.createShare(userId, id);
-      return share ? json(share) : error(`No document with id ${id}`);
+      return md(
+        [
+          `View-only share link created for **${doc.title}**:`,
+          "",
+          share.url,
+          "",
+          `Anyone with this link can read the document but cannot edit it. Revoke it anytime with revoke_share (token \`${share.token}\`).`,
+        ].join("\n")
+      );
     }
   );
 
@@ -252,7 +303,14 @@ export function buildServer(userId) {
       description: "List share links, optionally filtered to one document.",
       inputSchema: { document_id: z.string().optional().describe("Filter by document id") },
     },
-    async ({ document_id }) => json(await store.listShares(userId, document_id))
+    async ({ document_id }) => {
+      const shares = await store.listShares(userId, document_id);
+      if (shares.length === 0) return md("No share links yet.");
+      const rows = shares.map(
+        (s) => `| \`${s.document_id}\` | ${s.url} | ${s.created_at} | ${s.revoked ? "Revoked" : "Active"} |`
+      );
+      return md(["| Document | URL | Created | Status |", "| --- | --- | --- | --- |", ...rows].join("\n"));
+    }
   );
 
   server.registerTool(
@@ -263,7 +321,9 @@ export function buildServer(userId) {
       inputSchema: { token: z.string().describe("Share token (the part after /s/ in the link)") },
     },
     async ({ token }) =>
-      (await store.revokeShare(userId, token)) ? json({ revoked: token }) : error(`No share with token ${token}`)
+      (await store.revokeShare(userId, token))
+        ? md(`Revoked share link \`${token}\`.`)
+        : error(`No share with token ${token}`)
   );
 
   return server;
