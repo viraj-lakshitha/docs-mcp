@@ -117,6 +117,13 @@ Then ask Claude things like:
 | `upload_asset` / `list_assets` / `delete_asset` | Asset CRUD (base64 upload) |
 | `share_document` / `list_shares` / `revoke_share` | View-only share links |
 
+Tool results are returned as Markdown, not raw JSON — `create_document`,
+`get_document`, and `update_document` include the document's actual content
+in the response, so a `` ```mermaid `` diagram it contains renders live
+wherever the client renders tool-result Markdown (Claude Code, Claude
+Desktop, claude.ai). `share_document` prints the share URL directly in the
+response text for easy copying.
+
 ## Document format
 
 Documents are plain markdown with two special fenced blocks:
