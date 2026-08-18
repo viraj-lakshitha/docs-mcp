@@ -4,6 +4,7 @@ import { ShellSidebar } from "../components/shell/ShellSidebar.jsx";
 import { ShellMobileNav } from "../components/shell/ShellMobileNav.jsx";
 import { ShellMobileTopbar } from "../components/shell/ShellMobileTopbar.jsx";
 import { NotesView } from "../components/notes/NotesView.jsx";
+import { TablesView } from "../components/tables/TablesView.jsx";
 import { SettingsView } from "../components/settings/SettingsView.jsx";
 import { AttachmentsView } from "../components/attachments/AttachmentsView.jsx";
 
@@ -32,6 +33,7 @@ export default function Workspace() {
 
       <main className="shell-main">
         {section === "notes" && <NotesView />}
+        {section === "tables" && <TablesView />}
         {section === "settings" && <SettingsView me={me} onUpdated={setMe} />}
         {section === "attachments" && <AttachmentsView />}
       </main>

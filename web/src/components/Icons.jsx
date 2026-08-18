@@ -126,3 +126,18 @@ export const DiagramIcon = ({ size = 18 }) => (
     <path d="M17.5 16v-3" />
   </svg>
 );
+
+export const TableIcon = ({ size = 18 }) => (
+  <svg {...base} width={size} height={size}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 10h18M3 15h18M9 4v16" />
+  </svg>
+);
+
+export const KeyIcon = ({ size = 18 }) => (
+  <svg {...base} width={size} height={size}>
+    <circle cx="8" cy="15" r="4.5" />
+    <path d="M11.3 11.7L20 3M20 3v4.5M20 3h-4.5" />
+    <path d="M15 7.8l2.5 2.5" />
+  </svg>
+);

@@ -104,6 +104,45 @@ function ensureSchema() {
         created_at  TEXT NOT NULL,
         revoked     BOOLEAN NOT NULL DEFAULT FALSE
       )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id         TEXT PRIMARY KEY,
+        user_id    TEXT NOT NULL REFERENCES users(id),
+        name       TEXT NOT NULL,
+        key_hash   TEXT NOT NULL UNIQUE,
+        prefix     TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        revoked    BOOLEAN NOT NULL DEFAULT FALSE
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tables (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT,
+        name        TEXT NOT NULL,
+        description TEXT,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      )`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS table_columns (
+        id         TEXT PRIMARY KEY,
+        table_id   TEXT NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        name       TEXT NOT NULL,
+        type       TEXT NOT NULL,
+        position   INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )`);
+    await pool.query("CREATE INDEX IF NOT EXISTS table_columns_table_id_idx ON table_columns(table_id)");
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS table_rows (
+        id         TEXT PRIMARY KEY,
+        table_id   TEXT NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
+        user_id    TEXT,
+        data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`);
+    await pool.query("CREATE INDEX IF NOT EXISTS table_rows_table_id_idx ON table_rows(table_id)");
     // Upgrades for databases created before auth existed.
     await pool.query("ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id TEXT");
     await pool.query("ALTER TABLE assets ADD COLUMN IF NOT EXISTS user_id TEXT");
@@ -475,4 +514,210 @@ export async function getSharedDocument(token) {
     [token]
   );
   return rows[0] ?? null;
+}
+
+// ---- API keys (REST access for scripts/external tools; never valid for /mcp) ----
+
+export async function createApiKey(userId, name) {
+  const raw = `dmcp_${crypto.randomBytes(24).toString("base64url")}`;
+  const key = { id: newId(), user_id: userId, name: name || "API key", prefix: raw.slice(0, 10), created_at: now() };
+  await q("INSERT INTO api_keys (id, user_id, name, key_hash, prefix, created_at) VALUES ($1, $2, $3, $4, $5, $6)", [
+    key.id,
+    key.user_id,
+    key.name,
+    sha256(raw),
+    key.prefix,
+    key.created_at,
+  ]);
+  return { ...key, key: raw }; // raw key returned exactly once, never stored
+}
+
+export async function getUserIdForApiKey(rawKey) {
+  if (!rawKey || !rawKey.startsWith("dmcp_")) return null;
+  const rows = await q("SELECT user_id FROM api_keys WHERE key_hash = $1 AND revoked = FALSE", [sha256(rawKey)]);
+  return rows[0]?.user_id ?? null;
+}
+
+export async function listApiKeys(userId) {
+  return q("SELECT id, name, prefix, created_at, revoked FROM api_keys WHERE user_id = $1 ORDER BY created_at DESC", [
+    userId,
+  ]);
+}
+
+export async function revokeApiKey(userId, id) {
+  const rows = await q("UPDATE api_keys SET revoked = TRUE WHERE id = $1 AND user_id = $2 RETURNING id", [id, userId]);
+  return rows.length > 0;
+}
+
+// ---- tables (typed-column data tables; owner-scoped) ----
+
+const TABLE_COLUMN_TYPES = new Set(["text", "number", "boolean", "date"]);
+
+export async function createTable(userId, { name, description = null }) {
+  const table = { id: newId(), user_id: userId, name, description, created_at: now(), updated_at: now() };
+  await q(
+    "INSERT INTO tables (id, user_id, name, description, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
+    [table.id, table.user_id, table.name, table.description, table.created_at, table.updated_at]
+  );
+  return table;
+}
+
+export async function listTables(userId) {
+  return q(
+    `SELECT t.*,
+            COUNT(DISTINCT c.id) AS column_count,
+            COUNT(DISTINCT r.id) AS row_count
+       FROM tables t
+       LEFT JOIN table_columns c ON c.table_id = t.id
+       LEFT JOIN table_rows r ON r.table_id = t.id
+      WHERE t.user_id = $1
+      GROUP BY t.id
+      ORDER BY t.updated_at DESC`,
+    [userId]
+  );
+}
+
+export async function getTable(userId, id) {
+  const rows = await q("SELECT * FROM tables WHERE id = $1 AND user_id = $2", [id, userId]);
+  const table = rows[0];
+  if (!table) return null;
+  const columns = await q("SELECT * FROM table_columns WHERE table_id = $1 ORDER BY position", [id]);
+  return { ...table, columns };
+}
+
+export async function updateTable(userId, id, { name, description }) {
+  const table = await getTable(userId, id);
+  if (!table) return null;
+  await q("UPDATE tables SET name = $1, description = $2, updated_at = $3 WHERE id = $4 AND user_id = $5", [
+    name ?? table.name,
+    description !== undefined ? description : table.description,
+    now(),
+    id,
+    userId,
+  ]);
+  return getTable(userId, id);
+}
+
+export async function deleteTable(userId, id) {
+  const rows = await q("DELETE FROM tables WHERE id = $1 AND user_id = $2 RETURNING id", [id, userId]);
+  return rows.length > 0;
+}
+
+export async function addColumn(userId, tableId, { name, type }) {
+  if (!(await getTable(userId, tableId))) return null;
+  if (!TABLE_COLUMN_TYPES.has(type)) return "invalid_type";
+  const posRows = await q("SELECT COALESCE(MAX(position), -1) + 1 AS next FROM table_columns WHERE table_id = $1", [
+    tableId,
+  ]);
+  const column = { id: newId(), table_id: tableId, name, type, position: posRows[0].next, created_at: now() };
+  await q("INSERT INTO table_columns (id, table_id, name, type, position, created_at) VALUES ($1, $2, $3, $4, $5, $6)", [
+    column.id,
+    column.table_id,
+    column.name,
+    column.type,
+    column.position,
+    column.created_at,
+  ]);
+  return column;
+}
+
+export async function updateColumn(userId, tableId, columnId, { name, type }) {
+  if (!(await getTable(userId, tableId))) return null;
+  if (type !== undefined && !TABLE_COLUMN_TYPES.has(type)) return "invalid_type";
+  const rows = await q("SELECT * FROM table_columns WHERE id = $1 AND table_id = $2", [columnId, tableId]);
+  const column = rows[0];
+  if (!column) return null;
+  await q("UPDATE table_columns SET name = $1, type = $2 WHERE id = $3 AND table_id = $4", [
+    name ?? column.name,
+    type ?? column.type,
+    columnId,
+    tableId,
+  ]);
+  return { ...column, name: name ?? column.name, type: type ?? column.type };
+}
+
+export async function deleteColumn(userId, tableId, columnId) {
+  if (!(await getTable(userId, tableId))) return false;
+  const rows = await q("DELETE FROM table_columns WHERE id = $1 AND table_id = $2 RETURNING id", [columnId, tableId]);
+  if (rows.length === 0) return false;
+  await q("UPDATE table_rows SET data = data - $1 WHERE table_id = $2", [columnId, tableId]);
+  return true;
+}
+
+export async function reorderColumns(userId, tableId, orderedColumnIds) {
+  if (!(await getTable(userId, tableId))) return false;
+  for (let i = 0; i < orderedColumnIds.length; i++) {
+    await q("UPDATE table_columns SET position = $1 WHERE id = $2 AND table_id = $3", [i, orderedColumnIds[i], tableId]);
+  }
+  return true;
+}
+
+const ROW_PAGE_DEFAULT = 50;
+const ROW_PAGE_MAX = 500;
+
+export async function listRows(userId, tableId, { limit = ROW_PAGE_DEFAULT, offset = 0 } = {}) {
+  if (!(await getTable(userId, tableId))) return null;
+  const cappedLimit = Math.min(Math.max(1, limit), ROW_PAGE_MAX);
+  const rows = await q(
+    "SELECT *, COUNT(*) OVER() AS total_count FROM table_rows WHERE table_id = $1 ORDER BY created_at LIMIT $2 OFFSET $3",
+    [tableId, cappedLimit, Math.max(0, offset)]
+  );
+  return { rows: rows.map(({ total_count, ...r }) => r), total: rows[0] ? Number(rows[0].total_count) : 0 };
+}
+
+export async function getRow(userId, tableId, rowId) {
+  if (!(await getTable(userId, tableId))) return null;
+  const rows = await q("SELECT * FROM table_rows WHERE id = $1 AND table_id = $2", [rowId, tableId]);
+  return rows[0] ?? null;
+}
+
+export async function createRow(userId, tableId, data) {
+  if (!(await getTable(userId, tableId))) return null;
+  const row = { id: newId(), table_id: tableId, user_id: userId, data, created_at: now(), updated_at: now() };
+  await q(
+    "INSERT INTO table_rows (id, table_id, user_id, data, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
+    [row.id, row.table_id, row.user_id, JSON.stringify(row.data), row.created_at, row.updated_at]
+  );
+  return row;
+}
+
+export async function updateRow(userId, tableId, rowId, data) {
+  if (!(await getRow(userId, tableId, rowId))) return null;
+  await q("UPDATE table_rows SET data = data || $1::jsonb, updated_at = $2 WHERE id = $3 AND table_id = $4", [
+    JSON.stringify(data),
+    now(),
+    rowId,
+    tableId,
+  ]);
+  return getRow(userId, tableId, rowId);
+}
+
+export async function deleteRow(userId, tableId, rowId) {
+  if (!(await getTable(userId, tableId))) return false;
+  const rows = await q("DELETE FROM table_rows WHERE id = $1 AND table_id = $2 RETURNING id", [rowId, tableId]);
+  return rows.length > 0;
+}
+
+// Batched multi-row INSERT so a large CSV import doesn't make one round trip
+// per row (relevant on Vercel's per-invocation time budget).
+const BULK_INSERT_BATCH_SIZE = 500;
+
+export async function bulkInsertRows(userId, tableId, rowsData) {
+  if (!(await getTable(userId, tableId))) return null;
+  let inserted = 0;
+  for (let i = 0; i < rowsData.length; i += BULK_INSERT_BATCH_SIZE) {
+    const batch = rowsData.slice(i, i + BULK_INSERT_BATCH_SIZE);
+    const values = [];
+    const placeholders = batch.map((data, j) => {
+      const base = j * 6;
+      values.push(newId(), tableId, userId, JSON.stringify(data), now(), now());
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}::jsonb, $${base + 5}, $${base + 6})`;
+    });
+    await q(
+      `INSERT INTO table_rows (id, table_id, user_id, data, created_at, updated_at) VALUES ${placeholders.join(", ")}`,
+      values
+    );
+    inserted += batch.length;
+  }
+  return inserted;
 }

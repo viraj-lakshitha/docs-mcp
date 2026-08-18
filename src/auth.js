@@ -61,6 +61,30 @@ export const requireAuth = ah(async (req, res, next) => {
   next();
 });
 
+// REST-only auth: accepts an API key (`dmcp_...`) in addition to everything
+// `authenticate()` already accepts (OAuth bearer token, session cookie).
+// Deliberately layered on top of — not merged into — authenticate(), which
+// the /mcp route also calls directly: /mcp must stay OAuth-only, so API keys
+// are never given a path into that function.
+export async function authenticateApi(req) {
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) {
+    const token = header.slice(7).trim();
+    if (token.startsWith("dmcp_")) {
+      const userId = await store.getUserIdForApiKey(token);
+      if (userId) return userId;
+    }
+  }
+  return authenticate(req);
+}
+
+export const requireApiAuth = ah(async (req, res, next) => {
+  const userId = await authenticateApi(req);
+  if (!userId) return res.status(401).json({ error: "authentication required" });
+  req.userId = userId;
+  next();
+});
+
 export function authRouter() {
   const router = express.Router();
 
