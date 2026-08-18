@@ -137,3 +137,33 @@ export function ShareLinkDialog({ url, onClose }) {
     </Dialog>
   );
 }
+
+// Displays a freshly minted API key exactly once — the server never stores
+// or returns the raw value again after this.
+export function SecretRevealDialog({ title, secret, warning, onClose }) {
+  const [copied, setCopied] = useState(false);
+  const inputRef = useRef(null);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(secret);
+    } catch {
+      inputRef.current?.select();
+      document.execCommand("copy");
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <Dialog
+      title={title}
+      onClose={onClose}
+      actions={<Button variant="primary" onClick={onClose}>Done</Button>}
+    >
+      <p style={{ margin: 0 }}>{warning}</p>
+      <div className="share-url-row">
+        <input ref={inputRef} className="input" readOnly value={secret} onFocus={(e) => e.target.select()} />
+        <Button onClick={copy}>{copied ? "Copied!" : "Copy"}</Button>
+      </div>
+    </Dialog>
+  );
+}

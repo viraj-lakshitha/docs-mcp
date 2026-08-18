@@ -12,13 +12,14 @@ licensed** — see [Open source](#open-source--self-hosting) below.
 ## Features
 
 - **Document CRUD** — create, list, read, update, delete (via MCP tools, REST API, or the web editor)
+- **Tables** — n8n-style typed-column data tables: create a table, define Text/Number/Boolean/Date columns, and CRUD rows via the web grid, REST API, or MCP tools; import rows from CSV (as a new table with auto-detected columns, or into an existing table with column mapping)
 - **Asset CRUD** — upload images/files and embed them in documents (`![alt](/a/<asset_id>)`)
 - **Markdown** — documents are markdown, rendered live in the editor preview and on share pages
 - **Mermaid diagrams** — fenced ` ```mermaid ` blocks render as diagrams
 - **Excalidraw** — fenced ` ```excalidraw ` blocks containing a scene JSON render as hand-drawn SVG
 - **View-only sharing** — mint unguessable share links (`/s/<token>`); viewers get a rendered, read-only page and can be revoked at any time
-- **Login & per-user access** — email/password accounts with a browser login portal; documents, assets, and shares are private to their owner. MCP clients connect via OAuth (works as a Claude custom connector)
-- **App shell** — a persistent nav (sidebar on desktop, bottom bar on mobile) switches between three sections: **Notes** (the document list/editor/preview), **Settings** (edit your name/email; see and disconnect MCP integrations authorized on your account), and **Attachments** (every uploaded asset in one place, with copy-link and delete)
+- **Login & per-user access** — email/password accounts with a browser login portal; documents, assets, tables, and shares are private to their owner. MCP clients connect via OAuth (works as a Claude custom connector); scripts and other tools can call the REST API with an API key instead
+- **App shell** — a persistent nav (sidebar on desktop, bottom bar on mobile) switches between four sections: **Notes** (the document list/editor/preview), **Tables** (the table list and row grid), **Settings** (edit your name/email; see and disconnect MCP integrations; create and revoke API keys), and **Attachments** (every uploaded asset in one place, with copy-link and delete)
 - **Marketing landing page** — a public `/` page explaining what Notes is and why, with CTAs into sign-up/sign-in; the app itself lives at `/app`
 - **Vercel-native** — deploys as a Vercel project: documents/shares in **Neon Postgres**, asset binaries in **Vercel Blob**, frontend + vendored renderer libraries on the CDN, API/MCP as a serverless function
 
@@ -71,10 +72,11 @@ links — belongs to your account; other users can't see or touch it. Set
 `DOCS_MCP_DISABLE_SIGNUP=true` to close registration after your team has
 accounts.
 
-Once signed in, the app is a three-section shell:
+Once signed in, the app is a four-section shell:
 
 - **Notes** — the document list, editor, and live preview (this is the main workspace)
-- **Settings** — edit your name and email, and see/disconnect the MCP clients (e.g. Claude) currently authorized on your account
+- **Tables** — create a table, define typed columns (Text/Number/Boolean/Date), and edit rows in a spreadsheet-like grid; import a CSV as a new table or into an existing one
+- **Settings** — edit your name and email, see/disconnect the MCP clients (e.g. Claude) currently authorized on your account, and create/revoke API keys for REST access
 - **Attachments** — every asset you've uploaded in one place, with copy-link and delete
 
 On desktop these live behind a left nav rail; on mobile, a bottom tab bar switches sections (Notes has its own List/Edit/Preview sub-tabs at the top, since only that section needs them).
@@ -112,17 +114,21 @@ Then ask Claude things like:
 
 | Tool | Purpose |
 | --- | --- |
-| `get_instructions` | Full usage guide: document format, diagram fences, assets, sharing rules (also served as MCP server `instructions` at initialize) |
+| `get_instructions` | Full usage guide: document format, diagram fences, assets, sharing rules, tables (also served as MCP server `instructions` at initialize) |
 | `create_document` / `get_document` / `list_documents` / `update_document` / `delete_document` | Document CRUD |
 | `upload_asset` / `list_assets` / `delete_asset` | Asset CRUD (base64 upload) |
 | `share_document` / `list_shares` / `revoke_share` | View-only share links |
+| `create_table` / `list_tables` / `get_table` / `update_table` / `delete_table` | Table CRUD |
+| `add_column` / `update_column` / `delete_column` | Column schema management |
+| `create_row` / `list_rows` / `update_row` / `delete_row` | Row CRUD (row data keyed by column name; `list_rows` is paginated) |
+| `import_csv_rows` | Bulk-import rows into a table from CSV text (matched to existing columns by name) |
 
 Tool results are returned as Markdown, not raw JSON — `create_document`,
 `get_document`, and `update_document` include the document's actual content
 in the response, so a `` ```mermaid `` diagram it contains renders live
 wherever the client renders tool-result Markdown (Claude Code, Claude
 Desktop, claude.ai). `share_document` prints the share URL directly in the
-response text for easy copying.
+response text for easy copying. Table tools render rows as a Markdown table.
 
 ## Document format
 
@@ -148,20 +154,31 @@ Excalidraw's *Save to file*, or that Claude can author directly).
 
 ## REST API
 
-All `/api` routes except `/api/auth/*` and `/api/share/:token` require a
-session cookie or an OAuth bearer token; `/mcp` requires the bearer token.
+Most `/api` routes accept a session cookie, an OAuth bearer token, **or an
+API key** (`Authorization: Bearer dmcp_...`, created in Settings → API
+keys) — the exceptions are `/api/auth/*`, `/api/connections`, and
+`/api/api-keys` itself, which stay session/OAuth-only since they manage
+your account rather than your content. `/mcp` accepts **only** an OAuth
+bearer token — API keys are deliberately never valid there, since Claude's
+custom-connector flow requires OAuth for that endpoint.
 
 | Method & path | Purpose |
 | --- | --- |
 | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` | Accounts & sessions (public) |
 | `PUT /api/auth/me` | Update your profile (name, email) |
 | `GET /api/connections`, `DELETE /api/connections/:clientId` | List/disconnect MCP integrations authorized on your account |
+| `GET /api/api-keys`, `POST /api/api-keys`, `DELETE /api/api-keys/:id` | Create/list/revoke API keys (the raw key is returned once, on creation) |
 | `GET /.well-known/oauth-authorization-server`, `GET /.well-known/oauth-protected-resource` | OAuth discovery metadata |
 | `POST /oauth/register`, `GET /oauth/authorize`, `POST /oauth/decision`, `POST /oauth/token` | OAuth flow (registration, consent, tokens) |
 | `GET/POST /api/documents`, `GET/PUT/DELETE /api/documents/:id` | Document CRUD |
 | `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD; `/a/:id` redirects to the Vercel Blob URL |
 | `POST /api/documents/:id/share`, `GET /api/documents/:id/shares`, `DELETE /api/shares/:token` | Manage share links |
 | `GET /s/:token`, `GET /api/share/:token` | View-only share page + its read-only data endpoint |
+| `GET/POST /api/tables`, `GET/PATCH/DELETE /api/tables/:id` | Table CRUD |
+| `POST /api/tables/:id/columns`, `PATCH/DELETE /api/tables/:id/columns/:columnId`, `PUT /api/tables/:id/columns/reorder` | Column schema management |
+| `GET/POST /api/tables/:id/rows`, `GET/PATCH/DELETE /api/tables/:id/rows/:rowId` | Row CRUD (`GET` is paginated via `?limit=&offset=`) |
+| `POST /api/tables/import` | Create a new table from CSV (auto-detected columns) |
+| `POST /api/tables/:id/rows/import/preview`, `POST /api/tables/:id/rows/import` | Preview a CSV's headers/sample rows, then import into an existing table with a column mapping |
 | `POST /mcp` | MCP endpoint (Streamable HTTP transport, stateless) |
 
 ## Configuration
@@ -188,6 +205,10 @@ session cookie or an OAuth bearer token; `/mcp` requires the bearer token.
   single-use with a 10-minute expiry, and access/refresh tokens are stored
   only as SHA-256 hashes; refresh use rotates the pair and revokes the old
   grant (access tokens live 1 hour, refresh 30 days).
+- API keys are stored only as SHA-256 hashes (the raw `dmcp_...` value is
+  shown once, at creation, and never again); a key grants full access to
+  every REST endpoint your account can reach but is never accepted on
+  `/mcp`, which stays OAuth-only.
 - Asset blobs are `access: "public"` — anyone with a blob URL (or the
   unguessable `/a/:id` redirect) can fetch it, which is what lets images
   render on public share pages; deleting the asset deletes the blob.
@@ -202,8 +223,9 @@ LICENSE              # MIT
 api/index.js         # Vercel serverless entry (wraps src/app.js)
 vercel.json          # build config + rewrites (API paths -> function, rest -> SPA)
 src/db.js            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
-src/auth.js          # sessions, login/register routes, auth middleware
+src/auth.js          # sessions, API keys, login/register routes, auth middleware
 src/oauth.js         # OAuth 2.1 provider: discovery, registration, consent, tokens
+src/tables.js        # REST API for Tables: table/column/row CRUD, CSV import
 src/mcp.js           # MCP tool definitions (served over /mcp)
 src/app.js           # Express app: REST API, /mcp, OAuth routes, SPA fallback
 src/web-server.js    # local entry point (app.listen)

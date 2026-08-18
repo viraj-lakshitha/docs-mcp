@@ -1,9 +1,10 @@
 import { Brand, BrandLogo } from "../Brand.jsx";
 import { Button } from "../Button.jsx";
-import { NotesIcon, SettingsIcon, PaperclipIcon, LogoutIcon } from "../Icons.jsx";
+import { NotesIcon, TableIcon, SettingsIcon, PaperclipIcon, LogoutIcon } from "../Icons.jsx";
 
 export const SECTIONS = [
   { key: "notes", label: "Notes", Icon: NotesIcon },
+  { key: "tables", label: "Tables", Icon: TableIcon },
   { key: "settings", label: "Settings", Icon: SettingsIcon },
   { key: "attachments", label: "Attachments", Icon: PaperclipIcon },
 ];

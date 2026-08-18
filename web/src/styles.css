@@ -321,6 +321,52 @@ a { color: var(--color-accent); }
 }
 .editor-textarea:focus { outline: none; box-shadow: none; border: 0; }
 
+/* ---------- layout: tables view ---------- */
+.tables-view { display: grid; grid-template-columns: 240px 1fr; flex: 1; overflow: hidden; }
+
+.table-grid-pane { display: flex; flex-direction: column; overflow: hidden; }
+
+.row-grid-wrap { flex: 1; overflow: auto; background: var(--color-surface); }
+.row-grid { border-collapse: collapse; width: 100%; font-size: var(--text-md); }
+.row-grid th, .row-grid td { border: 1px solid var(--color-border); padding: 0; }
+.row-grid th {
+  background: var(--color-bg);
+  font-weight: var(--weight-semibold);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+.column-type-badge { font-size: var(--text-xs); color: var(--color-muted); font-weight: var(--weight-normal); margin-left: var(--space-1); }
+.row-grid td input[type="text"],
+.row-grid td input[type="number"],
+.row-grid td input[type="date"] {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+}
+.row-grid td input:focus { outline: 2px solid var(--color-accent); outline-offset: -2px; box-shadow: none; }
+.row-grid td { text-align: center; }
+.row-grid td:has(input[type="text"]), .row-grid td:has(input[type="number"]), .row-grid td:has(input[type="date"]) { text-align: left; }
+
+.tables-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.column-editor { display: flex; flex-direction: column; gap: var(--space-2); }
+.column-editor-row { display: flex; gap: var(--space-2); align-items: center; }
+.column-editor-row input[type="text"], .column-editor-row .input { flex: 1; }
+
 /* ---------- rendered document ---------- */
 .rendered {
   flex: 1;
@@ -683,6 +729,7 @@ a { color: var(--color-accent); }
 @media (max-width: 1150px) {
   .shell { grid-template-columns: 180px 1fr; }
   .notes-view { grid-template-columns: 200px 1fr 1fr; }
+  .tables-view { grid-template-columns: 200px 1fr; }
   .landing-hero { gap: var(--space-8); }
   .landing-hero__copy h1 { font-size: 34px; }
 }
@@ -717,6 +764,14 @@ a { color: var(--color-accent); }
   .notes-view[data-subview="list"] .notes-doclist { display: flex; }
   .notes-view[data-subview="edit"] .editor-pane { display: flex; }
   .notes-view[data-subview="preview"] .preview-pane { display: flex; }
+
+  /* Tables: table list / row grid become one pane at a time, same pattern
+     and shared classes (.notes-doclist, .notes-subnav) as Notes above. */
+  .tables-view { display: flex; flex-direction: column; width: 100%; height: 100%; }
+  .table-grid-pane { display: none; flex: 1; min-height: 0; }
+  .tables-view[data-subview="list"] .notes-doclist { display: flex; }
+  .tables-view[data-subview="grid"] .table-grid-pane { display: flex; }
+  .row-grid th, .row-grid td input { padding: var(--space-2); }
 
   /* touch-friendly controls; 16px inputs stop iOS zoom-on-focus */
   .btn { height: 38px; }

@@ -5,8 +5,10 @@
 // Auth surfaces:
 //   - /api/auth/*                     public (login portal endpoints)
 //   - /.well-known/*, /oauth/*        public (OAuth discovery + flow; consent requires a session)
-//   - /api/*                          session cookie or OAuth bearer token
-//   - /mcp                            OAuth bearer token
+//   - /api/connections, /api/api-keys session cookie or OAuth bearer token (account management, not API-key-eligible)
+//   - /api/documents, /api/assets,
+//     /api/tables, ...                session cookie, OAuth bearer token, or API key (dmcp_...)
+//   - /mcp                            OAuth bearer token ONLY — API keys are never valid here
 //   - /s/:token, /api/share/:token    public — that's what a share link is
 //   - /a/:id                          public — image embeds on share pages
 import express from "express";
@@ -14,8 +16,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "./mcp.js";
-import { authenticate, requireAuth, authRouter } from "./auth.js";
+import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
 import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
+import { tablesRouter } from "./tables.js";
 import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -88,13 +91,30 @@ app.delete("/api/connections/:clientId", requireAuth, ah(async (req, res) => {
     : res.status(404).json({ error: "not found" });
 }));
 
-// ---- document CRUD (owner-scoped) ----
+// ---- API keys (Settings → API keys; REST access for scripts/external tools) ----
 
-app.get("/api/documents", requireAuth, ah(async (req, res) => {
+app.get("/api/api-keys", requireAuth, ah(async (req, res) => {
+  res.json(await store.listApiKeys(req.userId));
+}));
+
+app.post("/api/api-keys", requireAuth, ah(async (req, res) => {
+  const { name } = req.body ?? {};
+  res.status(201).json(await store.createApiKey(req.userId, name));
+}));
+
+app.delete("/api/api-keys/:id", requireAuth, ah(async (req, res) => {
+  (await store.revokeApiKey(req.userId, req.params.id))
+    ? res.json({ revoked: req.params.id })
+    : res.status(404).json({ error: "not found" });
+}));
+
+// ---- document CRUD (owner-scoped; API key, OAuth bearer token, or session cookie) ----
+
+app.get("/api/documents", requireApiAuth, ah(async (req, res) => {
   res.json(await store.listDocuments(req.userId));
 }));
 
-app.post("/api/documents", requireAuth, ah(async (req, res) => {
+app.post("/api/documents", requireApiAuth, ah(async (req, res) => {
   const { title, content } = req.body ?? {};
   if (!title || typeof title !== "string") {
     return res.status(400).json({ error: "title is required" });
@@ -102,30 +122,30 @@ app.post("/api/documents", requireAuth, ah(async (req, res) => {
   res.status(201).json(await store.createDocument(req.userId, { title, content: content ?? "" }));
 }));
 
-app.get("/api/documents/:id", requireAuth, ah(async (req, res) => {
+app.get("/api/documents/:id", requireApiAuth, ah(async (req, res) => {
   const doc = await store.getDocument(req.userId, req.params.id);
   doc ? res.json(doc) : res.status(404).json({ error: "not found" });
 }));
 
-app.put("/api/documents/:id", requireAuth, ah(async (req, res) => {
+app.put("/api/documents/:id", requireApiAuth, ah(async (req, res) => {
   const { title, content } = req.body ?? {};
   const doc = await store.updateDocument(req.userId, req.params.id, { title, content });
   doc ? res.json(doc) : res.status(404).json({ error: "not found" });
 }));
 
-app.delete("/api/documents/:id", requireAuth, ah(async (req, res) => {
+app.delete("/api/documents/:id", requireApiAuth, ah(async (req, res) => {
   (await store.deleteDocument(req.userId, req.params.id))
     ? res.json({ deleted: req.params.id })
     : res.status(404).json({ error: "not found" });
 }));
 
-// ---- asset CRUD (owner-scoped) ----
+// ---- asset CRUD (owner-scoped; API key, OAuth bearer token, or session cookie) ----
 
-app.get("/api/assets", requireAuth, ah(async (req, res) => {
+app.get("/api/assets", requireApiAuth, ah(async (req, res) => {
   res.json(await store.listAssets(req.userId));
 }));
 
-app.post("/api/assets", requireAuth, ah(async (req, res) => {
+app.post("/api/assets", requireApiAuth, ah(async (req, res) => {
   const { filename, mime, data } = req.body ?? {};
   if (!filename || !mime || !data) {
     return res.status(400).json({ error: "filename, mime and data (base64) are required" });
@@ -135,11 +155,15 @@ app.post("/api/assets", requireAuth, ah(async (req, res) => {
   res.status(201).json(await store.createAsset(req.userId, { filename, mime, data: buf }));
 }));
 
-app.delete("/api/assets/:id", requireAuth, ah(async (req, res) => {
+app.delete("/api/assets/:id", requireApiAuth, ah(async (req, res) => {
   (await store.deleteAsset(req.userId, req.params.id))
     ? res.json({ deleted: req.params.id })
     : res.status(404).json({ error: "not found" });
 }));
+
+// ---- tables (typed-column data tables; API key, OAuth bearer token, or session cookie) ----
+
+app.use("/api/tables", requireApiAuth, tablesRouter());
 
 // Public: stable asset URLs (used by <img> tags on share pages) redirect to
 // Vercel Blob. Ids are unguessable 64-bit random values.
@@ -148,18 +172,18 @@ app.get("/a/:id", ah(async (req, res) => {
   asset ? res.redirect(302, asset.blob_url) : res.status(404).send("not found");
 }));
 
-// ---- view-only sharing ----
+// ---- view-only sharing (API key, OAuth bearer token, or session cookie) ----
 
-app.post("/api/documents/:id/share", requireAuth, ah(async (req, res) => {
+app.post("/api/documents/:id/share", requireApiAuth, ah(async (req, res) => {
   const share = await store.createShare(req.userId, req.params.id);
   share ? res.status(201).json(share) : res.status(404).json({ error: "not found" });
 }));
 
-app.get("/api/documents/:id/shares", requireAuth, ah(async (req, res) => {
+app.get("/api/documents/:id/shares", requireApiAuth, ah(async (req, res) => {
   res.json(await store.listShares(req.userId, req.params.id));
 }));
 
-app.delete("/api/shares/:token", requireAuth, ah(async (req, res) => {
+app.delete("/api/shares/:token", requireApiAuth, ah(async (req, res) => {
   (await store.revokeShare(req.userId, req.params.token))
     ? res.json({ revoked: req.params.token })
     : res.status(404).json({ error: "not found" });
@@ -188,7 +212,7 @@ app.get("*", (req, res, next) => {
 
 app.use((err, req, res, next) => {
   console.error(err);
-  if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
+  if (!res.headersSent) res.status(err.status || 500).json({ error: err.message || "internal error" });
 });
 
 export default app;
