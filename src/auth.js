@@ -4,6 +4,7 @@
 // the flow in src/oauth.js, sent as `Authorization: Bearer dmat_...`.
 import express from "express";
 import * as store from "./db.js";
+import { log } from "./log.js";
 
 const COOKIE_NAME = "docs_session";
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -100,11 +101,14 @@ export function authRouter() {
       return res.status(400).json({ error: "password must be at least 8 characters" });
     }
     if (await store.getUserByEmail(email)) {
+      log("auth.register.failed", { traceId: req.traceId, email, reason: "email_taken" });
       return res.status(409).json({ error: "an account with this email already exists" });
     }
     const user = await store.createUser({ email, password });
     const session = await store.createSession(user.id);
     setSessionCookie(req, res, session.token, session.expires_at);
+    req.userId = user.id;
+    log("auth.register.success", { traceId: req.traceId, userId: user.id, email: user.email });
     res.status(201).json({ id: user.id, email: user.email });
   }));
 
@@ -112,16 +116,24 @@ export function authRouter() {
     const { email, password } = req.body ?? {};
     const user = email && password ? await store.getUserByEmail(email) : null;
     if (!user || !store.verifyPassword(password, user.password_hash)) {
+      log("auth.login.failed", { traceId: req.traceId, email: email || null });
       return res.status(401).json({ error: "invalid email or password" });
     }
     const session = await store.createSession(user.id);
     setSessionCookie(req, res, session.token, session.expires_at);
+    req.userId = user.id;
+    log("auth.login.success", { traceId: req.traceId, userId: user.id, email: user.email });
     res.json({ id: user.id, email: user.email });
   }));
 
   router.post("/logout", ah(async (req, res) => {
     const token = parseCookies(req)[COOKIE_NAME];
-    if (token) await store.deleteSession(token);
+    if (token) {
+      const session = await store.getSession(token);
+      req.userId = session?.user_id || null;
+      await store.deleteSession(token);
+    }
+    log("auth.logout", { traceId: req.traceId, userId: req.userId || null });
     res.setHeader("Set-Cookie", `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`);
     res.json({ ok: true });
   }));
