@@ -14,6 +14,8 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "./mcp.js";
 import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
@@ -23,11 +25,38 @@ import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = express();
+// Don't advertise the framework in responses.
+app.disable("x-powered-by");
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: false }));
 
 // Express 4 doesn't forward rejected promises to the error handler on its own.
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Per-process, in-memory rate limits (RateLimit-* response headers via
+// standardHeaders). On a single long-running server (local/self-hosted) this
+// throttles abuse directly; on Vercel each serverless instance enforces its
+// own window, which is weaker but still bounds damage from a single hot
+// instance and is the best a stateless function can do without an external
+// store like Redis.
+const mcpLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
+const apiLimiter = rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false });
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+
+const mcpUnauthorized = (res) => {
+  res.setHeader(
+    "WWW-Authenticate",
+    `Bearer resource_metadata="${store.baseUrl()}/.well-known/oauth-protected-resource"`
+  );
+  return res.status(401).json({
+    jsonrpc: "2.0",
+    error: { code: -32001, message: "Authentication required: connect via OAuth to get a bearer token" },
+    id: null,
+  });
+};
+
+app.use("/api", apiLimiter);
 
 // ---- auth & OAuth provider ----
 
@@ -42,19 +71,10 @@ app.use("/oauth", oauthRouter());
 // client discovers /.well-known metadata, registers, and runs the
 // authorize/consent flow against your account.
 app.options("/mcp", oauthCors);
+app.use("/mcp", mcpLimiter);
 app.post("/mcp", oauthCors, ah(async (req, res) => {
   const userId = await authenticate(req);
-  if (!userId) {
-    res.setHeader(
-      "WWW-Authenticate",
-      `Bearer resource_metadata="${store.baseUrl()}/.well-known/oauth-protected-resource"`
-    );
-    return res.status(401).json({
-      jsonrpc: "2.0",
-      error: { code: -32001, message: "Authentication required: connect via OAuth to get a bearer token" },
-      id: null,
-    });
-  }
+  if (!userId) return mcpUnauthorized(res);
   const server = buildServer(userId);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => {
@@ -75,9 +95,17 @@ app.post("/mcp", oauthCors, ah(async (req, res) => {
     }
   }
 }));
-// Stateless mode has no sessions to resume or terminate.
-app.get("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
-app.delete("/mcp", (req, res) => res.status(405).json({ error: "method not allowed" }));
+// Stateless mode has no sessions to resume or terminate — but an
+// unauthenticated caller still gets 401, not a 405 that would let it probe
+// the endpoint's existence/method support without ever proving identity.
+app.get("/mcp", oauthCors, ah(async (req, res) => {
+  if (!(await authenticate(req))) return mcpUnauthorized(res);
+  res.status(405).json({ error: "method not allowed" });
+}));
+app.delete("/mcp", oauthCors, ah(async (req, res) => {
+  if (!(await authenticate(req))) return mcpUnauthorized(res);
+  res.status(405).json({ error: "method not allowed" });
+}));
 
 // ---- connected MCP integrations (Settings → Integrations) ----
 
@@ -145,10 +173,25 @@ app.get("/api/assets", requireApiAuth, ah(async (req, res) => {
   res.json(await store.listAssets(req.userId));
 }));
 
-app.post("/api/assets", requireApiAuth, ah(async (req, res) => {
+// Accepts either multipart/form-data (a "file" field — the natural shape for
+// curl/browsers/scripts) or a JSON body with base64 data (the shape MCP tool
+// calls use, since tool arguments are JSON). multer only touches requests
+// whose Content-Type is multipart/form-data, so the two paths don't collide.
+app.post("/api/assets", requireApiAuth, upload.single("file"), ah(async (req, res) => {
+  if (req.file) {
+    if (req.file.size === 0) return res.status(400).json({ error: "uploaded file is empty" });
+    const asset = await store.createAsset(req.userId, {
+      filename: req.file.originalname,
+      mime: req.file.mimetype || "application/octet-stream",
+      data: req.file.buffer,
+    });
+    return res.status(201).json(asset);
+  }
   const { filename, mime, data } = req.body ?? {};
   if (!filename || !mime || !data) {
-    return res.status(400).json({ error: "filename, mime and data (base64) are required" });
+    return res
+      .status(400)
+      .json({ error: "filename, mime and data (base64) are required — or send multipart/form-data with a 'file' field" });
   }
   const buf = Buffer.from(data, "base64");
   if (buf.length === 0) return res.status(400).json({ error: "data decoded to an empty file" });
@@ -212,7 +255,9 @@ app.get("*", (req, res, next) => {
 
 app.use((err, req, res, next) => {
   console.error(err);
-  if (!res.headersSent) res.status(err.status || 500).json({ error: err.message || "internal error" });
+  if (res.headersSent) return;
+  if (err.name === "MulterError") return res.status(400).json({ error: err.message });
+  res.status(err.status || 500).json({ error: err.message || "internal error" });
 });
 
 export default app;

@@ -171,7 +171,7 @@ custom-connector flow requires OAuth for that endpoint.
 | `GET /.well-known/oauth-authorization-server`, `GET /.well-known/oauth-protected-resource` | OAuth discovery metadata |
 | `POST /oauth/register`, `GET /oauth/authorize`, `POST /oauth/decision`, `POST /oauth/token` | OAuth flow (registration, consent, tokens) |
 | `GET/POST /api/documents`, `GET/PUT/DELETE /api/documents/:id` | Document CRUD |
-| `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD; `/a/:id` redirects to the Vercel Blob URL |
+| `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD; `POST` accepts either `multipart/form-data` (a `file` field) or JSON with base64 `data`; `/a/:id` redirects to the Vercel Blob URL |
 | `POST /api/documents/:id/share`, `GET /api/documents/:id/shares`, `DELETE /api/shares/:token` | Manage share links |
 | `GET /s/:token`, `GET /api/share/:token` | View-only share page + its read-only data endpoint |
 | `GET/POST /api/tables`, `GET/PATCH/DELETE /api/tables/:id` | Table CRUD |
@@ -209,6 +209,12 @@ custom-connector flow requires OAuth for that endpoint.
   shown once, at creation, and never again); a key grants full access to
   every REST endpoint your account can reach but is never accepted on
   `/mcp`, which stays OAuth-only.
+- `/mcp` and `/api/*` are rate-limited per-process (`RateLimit-*` response
+  headers); unauthenticated requests to `/mcp` always get 401 regardless of
+  HTTP method, so the endpoint's method support can't be probed without
+  credentials. OAuth authorization responses carry `iss` (RFC 9207) so a
+  client juggling multiple authorization servers can't be tricked by a
+  mixed-up code. The `X-Powered-By` header is disabled.
 - Asset blobs are `access: "public"` — anyone with a blob URL (or the
   unguessable `/a/:id` redirect) can fetch it, which is what lets images
   render on public share pages; deleting the asset deletes the blob.

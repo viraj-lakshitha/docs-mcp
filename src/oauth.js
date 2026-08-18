@@ -38,6 +38,10 @@ export function metadataRouter() {
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none"],
       scopes_supported: ["mcp"],
+      // RFC 9207: authorization responses carry `iss` so a client juggling
+      // multiple authorization servers can tell which one issued a code,
+      // closing the mix-up attack the RFC targets.
+      authorization_response_iss_parameter_supported: true,
     });
   };
   const resourceMetadata = (req, res) => {
@@ -187,6 +191,7 @@ export function oauthRouter() {
       url.searchParams.set("error", error);
       if (description) url.searchParams.set("error_description", description);
       if (state) url.searchParams.set("state", String(state));
+      url.searchParams.set("iss", store.baseUrl()); // RFC 9207
       res.redirect(302, url.href);
     };
     if (response_type !== "code") return bounce("unsupported_response_type", "only code is supported");
@@ -225,6 +230,8 @@ export function oauthRouter() {
 
     const url = new URL(String(redirect_uri));
     if (state) url.searchParams.set("state", String(state));
+    // RFC 9207: every authorization response — success or error — carries iss.
+    url.searchParams.set("iss", store.baseUrl());
     if (decision !== "approve" || !code_challenge) {
       url.searchParams.set("error", "access_denied");
       return res.redirect(302, url.href);
