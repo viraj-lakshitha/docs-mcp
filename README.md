@@ -215,6 +215,24 @@ custom-connector flow requires OAuth for that endpoint.
   credentials. OAuth authorization responses carry `iss` (RFC 9207) so a
   client juggling multiple authorization servers can't be tricked by a
   mixed-up code. The `X-Powered-By` header is disabled.
+
+## Logging
+
+Every request and MCP tool call is logged as one JSON line (`src/log.js`) —
+via `console.log`/`console.error`, so it lands wherever your platform
+collects stdout/stderr (Vercel's log stream locally, or `npm run web`'s
+terminal). Every line carries a `traceId` (reused from Vercel's own request
+id when present, so app logs correlate with platform logs; otherwise a fresh
+UUID per request) and, once known, the acting `userId` — so grepping one
+`traceId` shows everything a single request did, and one `userId` shows
+everything an account did, across HTTP requests, auth/OAuth events, API key
+creation/revocation, and every MCP tool call:
+
+```
+{"ts":"...","event":"http.request","traceId":"...","userId":"...","method":"POST","path":"/api/tables","status":201,"ms":4}
+{"ts":"...","event":"mcp.tool.call","traceId":"...","userId":"...","tool":"create_row"}
+{"ts":"...","event":"mcp.tool.result","traceId":"...","userId":"...","tool":"create_row","ms":6,"isError":false}
+```
 - Asset blobs are `access: "public"` — anyone with a blob URL (or the
   unguessable `/a/:id` redirect) can fetch it, which is what lets images
   render on public share pages; deleting the asset deletes the blob.
@@ -232,6 +250,7 @@ src/db.js            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
 src/auth.js          # sessions, API keys, login/register routes, auth middleware
 src/oauth.js         # OAuth 2.1 provider: discovery, registration, consent, tokens
 src/tables.js        # REST API for Tables: table/column/row CRUD, CSV import
+src/log.js           # structured JSON logging (trace id + user id on every line)
 src/mcp.js           # MCP tool definitions (served over /mcp)
 src/app.js           # Express app: REST API, /mcp, OAuth routes, SPA fallback
 src/web-server.js    # local entry point (app.listen)

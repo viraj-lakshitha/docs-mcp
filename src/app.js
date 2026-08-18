@@ -13,6 +13,7 @@
 //   - /a/:id                          public — image embeds on share pages
 import express from "express";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
@@ -21,6 +22,7 @@ import { buildServer } from "./mcp.js";
 import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
 import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
 import { tablesRouter } from "./tables.js";
+import { log, logError } from "./log.js";
 import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,6 +34,28 @@ app.use(express.urlencoded({ extended: false }));
 
 // Express 4 doesn't forward rejected promises to the error handler on its own.
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Every request gets a trace id — reuse Vercel's own request id when present
+// (correlates our logs with Vercel's) so the same id threads through this
+// access log, any error log, and (for /mcp) every tool-call log it triggers.
+// Logged on "finish" rather than up front so req.userId — set later by
+// requireAuth/requireApiAuth — is already populated by the time we log it.
+app.use((req, res, next) => {
+  req.traceId = req.headers["x-vercel-id"] || req.headers["x-request-id"] || crypto.randomUUID();
+  res.setHeader("X-Request-Id", req.traceId);
+  const startedAt = Date.now();
+  res.on("finish", () => {
+    log("http.request", {
+      traceId: req.traceId,
+      userId: req.userId || null,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      ms: Date.now() - startedAt,
+    });
+  });
+  next();
+});
 
 // Per-process, in-memory rate limits (RateLimit-* response headers via
 // standardHeaders). On a single long-running server (local/self-hosted) this
@@ -75,7 +99,8 @@ app.use("/mcp", mcpLimiter);
 app.post("/mcp", oauthCors, ah(async (req, res) => {
   const userId = await authenticate(req);
   if (!userId) return mcpUnauthorized(res);
-  const server = buildServer(userId);
+  req.userId = userId; // picked up by the access-log middleware's res.on("finish")
+  const server = buildServer(userId, req.traceId);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => {
     transport.close();
@@ -85,7 +110,7 @@ app.post("/mcp", oauthCors, ah(async (req, res) => {
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   } catch (err) {
-    console.error("MCP request failed:", err);
+    logError("mcp.request.error", { traceId: req.traceId, userId, error: err.message });
     if (!res.headersSent) {
       res.status(500).json({
         jsonrpc: "2.0",
@@ -99,11 +124,15 @@ app.post("/mcp", oauthCors, ah(async (req, res) => {
 // unauthenticated caller still gets 401, not a 405 that would let it probe
 // the endpoint's existence/method support without ever proving identity.
 app.get("/mcp", oauthCors, ah(async (req, res) => {
-  if (!(await authenticate(req))) return mcpUnauthorized(res);
+  const userId = await authenticate(req);
+  if (!userId) return mcpUnauthorized(res);
+  req.userId = userId;
   res.status(405).json({ error: "method not allowed" });
 }));
 app.delete("/mcp", oauthCors, ah(async (req, res) => {
-  if (!(await authenticate(req))) return mcpUnauthorized(res);
+  const userId = await authenticate(req);
+  if (!userId) return mcpUnauthorized(res);
+  req.userId = userId;
   res.status(405).json({ error: "method not allowed" });
 }));
 
@@ -127,13 +156,15 @@ app.get("/api/api-keys", requireAuth, ah(async (req, res) => {
 
 app.post("/api/api-keys", requireAuth, ah(async (req, res) => {
   const { name } = req.body ?? {};
-  res.status(201).json(await store.createApiKey(req.userId, name));
+  const key = await store.createApiKey(req.userId, name);
+  log("apikey.created", { traceId: req.traceId, userId: req.userId, keyId: key.id, prefix: key.prefix });
+  res.status(201).json(key);
 }));
 
 app.delete("/api/api-keys/:id", requireAuth, ah(async (req, res) => {
-  (await store.revokeApiKey(req.userId, req.params.id))
-    ? res.json({ revoked: req.params.id })
-    : res.status(404).json({ error: "not found" });
+  const revoked = await store.revokeApiKey(req.userId, req.params.id);
+  if (revoked) log("apikey.revoked", { traceId: req.traceId, userId: req.userId, keyId: req.params.id });
+  revoked ? res.json({ revoked: req.params.id }) : res.status(404).json({ error: "not found" });
 }));
 
 // ---- document CRUD (owner-scoped; API key, OAuth bearer token, or session cookie) ----
@@ -254,7 +285,14 @@ app.get("*", (req, res, next) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  logError("http.error", {
+    traceId: req.traceId,
+    userId: req.userId || null,
+    method: req.method,
+    path: req.path,
+    error: err.message,
+    stack: err.stack,
+  });
   if (res.headersSent) return;
   if (err.name === "MulterError") return res.status(400).json({ error: err.message });
   res.status(err.status || 500).json({ error: err.message || "internal error" });

@@ -10,6 +10,7 @@ import express from "express";
 import crypto from "node:crypto";
 import * as store from "./db.js";
 import { sessionUser } from "./auth.js";
+import { log } from "./log.js";
 
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -168,6 +169,7 @@ export function oauthRouter() {
       name: typeof client_name === "string" && client_name.trim() ? client_name.trim().slice(0, 100) : "MCP client",
       redirectUris: redirect_uris,
     });
+    log("oauth.client.registered", { traceId: req.traceId, clientId: client.id, name: client.name });
     res.status(201).json({
       client_id: client.id,
       client_name: client.name,
@@ -227,12 +229,14 @@ export function oauthRouter() {
     }
     const user = await sessionUser(req);
     if (!user) return res.status(401).send("Session expired — please sign in and retry the connection.");
+    req.userId = user.id; // picked up by the access-log middleware's res.on("finish")
 
     const url = new URL(String(redirect_uri));
     if (state) url.searchParams.set("state", String(state));
     // RFC 9207: every authorization response — success or error — carries iss.
     url.searchParams.set("iss", store.baseUrl());
     if (decision !== "approve" || !code_challenge) {
+      log("oauth.decision", { traceId: req.traceId, userId: user.id, clientId: client.id, decision: "deny" });
       url.searchParams.set("error", "access_denied");
       return res.redirect(302, url.href);
     }
@@ -243,6 +247,7 @@ export function oauthRouter() {
       codeChallenge: String(code_challenge),
       scope: String(scope || ""),
     });
+    log("oauth.decision", { traceId: req.traceId, userId: user.id, clientId: client.id, decision: "approve" });
     url.searchParams.set("code", code);
     res.redirect(302, url.href);
   }));
@@ -256,11 +261,29 @@ export function oauthRouter() {
       const { code, code_verifier, redirect_uri, client_id } = req.body;
       if (!code || !code_verifier) return fail(400, "invalid_request", "code and code_verifier are required");
       const grant = await store.consumeAuthCode(String(code));
-      if (!grant) return fail(400, "invalid_grant", "code is invalid, expired, or already used");
+      if (!grant) {
+        log("oauth.token.failed", { traceId: req.traceId, grantType: grant_type, reason: "invalid_grant" });
+        return fail(400, "invalid_grant", "code is invalid, expired, or already used");
+      }
       if (client_id && grant.client_id !== client_id) return fail(400, "invalid_grant", "client mismatch");
       if (redirect_uri && grant.redirect_uri !== redirect_uri) return fail(400, "invalid_grant", "redirect_uri mismatch");
       const challenge = crypto.createHash("sha256").update(String(code_verifier)).digest("base64url");
-      if (challenge !== grant.code_challenge) return fail(400, "invalid_grant", "PKCE verification failed");
+      if (challenge !== grant.code_challenge) {
+        log("oauth.token.failed", {
+          traceId: req.traceId,
+          userId: grant.user_id,
+          clientId: grant.client_id,
+          reason: "pkce_mismatch",
+        });
+        return fail(400, "invalid_grant", "PKCE verification failed");
+      }
+      req.userId = grant.user_id;
+      log("oauth.token.issued", {
+        traceId: req.traceId,
+        userId: grant.user_id,
+        clientId: grant.client_id,
+        grantType: grant_type,
+      });
       return res.json(await store.createOAuthTokens({
         userId: grant.user_id,
         clientId: grant.client_id,
@@ -270,7 +293,11 @@ export function oauthRouter() {
 
     if (grant_type === "refresh_token") {
       const tokens = await store.rotateRefreshToken(String(req.body.refresh_token || ""));
-      if (!tokens) return fail(400, "invalid_grant", "refresh token is invalid, expired, or revoked");
+      if (!tokens) {
+        log("oauth.token.failed", { traceId: req.traceId, grantType: grant_type, reason: "invalid_grant" });
+        return fail(400, "invalid_grant", "refresh token is invalid, expired, or revoked");
+      }
+      log("oauth.token.issued", { traceId: req.traceId, grantType: grant_type });
       return res.json(tokens);
     }
 

@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as store from "./db.js";
 import { parseCsv, coerceCell } from "./tables.js";
+import { log, logError } from "./log.js";
 
 const INSTRUCTIONS = `# Notes by Optiq Labs — MCP usage guide
 
@@ -104,11 +105,30 @@ not for prose.
 
 // All tools act as the given user: userId comes from a verified OAuth
 // access token presented to /mcp.
-export function buildServer(userId) {
+export function buildServer(userId, traceId) {
   const server = new McpServer(
     { name: "notes-by-optiq-labs", version: "0.1.0" },
     { instructions: INSTRUCTIONS }
   );
+
+  // Every tool call is logged with the request's trace id and the acting
+  // user id — wrapping registerTool itself here means every tool
+  // registered below (25 of them) gets this for free, with no per-tool
+  // instrumentation to keep in sync as tools are added.
+  const registerTool = server.registerTool.bind(server);
+  server.registerTool = (name, config, handler) =>
+    registerTool(name, config, async (...args) => {
+      const startedAt = Date.now();
+      log("mcp.tool.call", { traceId, userId, tool: name });
+      try {
+        const result = await handler(...args);
+        log("mcp.tool.result", { traceId, userId, tool: name, ms: Date.now() - startedAt, isError: !!result?.isError });
+        return result;
+      } catch (err) {
+        logError("mcp.tool.error", { traceId, userId, tool: name, ms: Date.now() - startedAt, error: err.message });
+        throw err;
+      }
+    });
 
   // MCP clients (Claude Code, Claude Desktop, claude.ai) render a tool
   // result's text content as Markdown, including live diagrams for fenced
