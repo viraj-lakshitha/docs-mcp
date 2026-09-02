@@ -10,12 +10,14 @@
   "type": "module",
   "scripts": {
     "build": "npm install --prefix web && npm run build --prefix web",
-    "web": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.js",
+    "web": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.ts",
     "dev:web": "npm run dev --prefix web",
-    "dev:db": "node scripts/dev-db.mjs"
+    "dev:db": "node scripts/dev-db.mjs",
+    "typecheck": "tsc --noEmit",
+    "typecheck:web": "npm run typecheck --prefix web"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=24"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
@@ -29,6 +31,11 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
-    "@electric-sql/pglite-socket": "^0.2.7"
+    "@electric-sql/pglite-socket": "^0.2.7",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.7.2"
   }
 }
