@@ -39,12 +39,13 @@ pages, REST API, and the `/mcp` endpoint) is served from your project domain.
 ## Local development
 
 Requires Node.js 24+. The backend is TypeScript run directly via
-[`tsx`](https://tsx.is) — no compile step, and unlike Node's own native
-type-stripping, `tsx` resolves the `.js`-suffixed relative imports in the
-source (the standard TypeScript `NodeNext` convention, also what Vercel's
-build expects) to their sibling `.ts` files. `npm run typecheck` (backend)
-and `npm run typecheck --prefix web` (frontend) run `tsc --noEmit` for real
-type checking — neither `tsx` nor Node's stripping does that.
+[`tsx`](https://tsx.is), which resolves the `.js`-suffixed relative imports
+in the source (the standard TypeScript `NodeNext` convention) to their
+sibling `.ts` files with no compile step. Production works differently — see
+[Project layout](#project-layout) below for how the backend is actually
+built and deployed. `npm run typecheck` (backend) and
+`npm run typecheck --prefix web` (frontend) run `tsc --noEmit` for real type
+checking — `tsx` doesn't do that.
 
 ```bash
 npm install
@@ -256,7 +257,7 @@ creation/revocation, and every MCP tool call:
 
 ```
 LICENSE              # MIT
-api/index.ts         # Vercel serverless entry (wraps src/app.ts)
+api/index.ts         # Vercel serverless entry (imports the compiled dist/src/app.js)
 vercel.json          # build config + rewrites (API paths -> function, rest -> SPA)
 shared/types.ts      # request/response interfaces shared by the backend and web/ frontend
 src/db.ts            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
@@ -269,19 +270,28 @@ src/app.ts           # Express app: REST API, /mcp, OAuth routes, SPA fallback
 src/web-server.ts    # local entry point (app.listen)
 web/                 # React app (Vite + TypeScript): pages + design system (see web/DESIGN.md)
 scripts/dev-db.mjs   # local PGlite Postgres for development
+dist/                # compiled backend output (gitignored; created by npm run build:api)
 public/              # build output of web/ (gitignored; created by npm run build)
 ```
 
-The backend is plain TypeScript (`.ts` files, no build step): locally it runs
-under `tsx`, and in production Vercel's Node.js Function builder transpiles
-each file individually. Both expect the standard TypeScript `NodeNext`
-convention — relative imports use a literal `.js` extension even though the
-file on disk is `.ts` (e.g. `import "./app.js"` for `src/app.ts`) — so avoid
-`allowImportingTsExtensions`-style `.ts`-suffixed specifiers on the backend;
-they resolve fine under Node's own native type-stripping but silently break
-Vercel's build. `tsc --noEmit` (`npm run typecheck`, and
-`npm run typecheck --prefix web` for the frontend) is what actually
-type-checks; neither runtime does. `shared/types.ts`
+The backend is TypeScript throughout, but source and production deployment
+are not the same files. `npm run build` (Vercel's `buildCommand`) runs
+`tsc -p tsconfig.build.json`, which compiles `src/` and `shared/` into plain
+`.js` under `dist/`, preserving the directory structure (`dist/src/app.js`,
+`dist/shared/types.js`, ...). `api/index.ts` — the one file Vercel's Node.js
+Function builder transpiles on its own — is a thin wrapper that imports the
+already-built `../dist/src/app.js`; since that's a real file on disk by the
+time Vercel bundles the function, there's no reliance on the builder
+resolving `.ts` sources or rewriting extensions itself. Locally, `npm run web`
+skips all of that and runs `src/web-server.ts` directly under `tsx`, which
+resolves the `.js`-suffixed relative imports in the source (the standard
+TypeScript `NodeNext` convention) to their sibling `.ts` files with no build
+step — so local dev and the production build both exercise the same `.js`
+extensions in import specifiers, just resolved by different tools (`tsx`
+locally, `tsc` for the real build). `npm run typecheck` runs `build:api`
+first (so `api/index.ts`'s import of the compiled output type-checks against
+real `.d.ts` files) and then `tsc --noEmit` for the actual type check; the
+`web` equivalent is `npm run typecheck --prefix web`. `shared/types.ts`
 is the single source of truth for request/response shapes — imported by
 `src/db.ts`/`src/app.ts`/`src/tables.ts`/`src/mcp.ts` on the backend and by
 `web/src`'s components directly (Vite's dev server and build both resolve
