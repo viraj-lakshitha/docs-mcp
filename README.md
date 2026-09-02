@@ -38,10 +38,7 @@ pages, REST API, and the `/mcp` endpoint) is served from your project domain.
 
 ## Local development
 
-Requires Node.js 24+. The backend is TypeScript run directly — Node 24 strips
-types natively, so there's no compile step; `npm run typecheck` (backend) and
-`npm run typecheck --prefix web` (frontend) run `tsc --noEmit` for real type
-checking.
+Requires Node.js 22.x.
 
 ```bash
 npm install
@@ -132,11 +129,6 @@ in the response, so a `` ```mermaid `` diagram it contains renders live
 wherever the client renders tool-result Markdown (Claude Code, Claude
 Desktop, claude.ai). `share_document` prints the share URL directly in the
 response text for easy copying. Table tools render rows as a Markdown table.
-Every create/upload tool (`create_document`, `upload_asset`, `create_table`,
-`add_column`, `create_row`, `share_document`, ...) also returns an MCP
-`structuredContent` block (`id`, and `url` where applicable) alongside the
-Markdown, so programmatic callers — an n8n workflow, a script — can bind to
-`output.id`/`output.url` directly instead of parsing it out of the text.
 
 ## Document format
 
@@ -179,7 +171,7 @@ custom-connector flow requires OAuth for that endpoint.
 | `GET /.well-known/oauth-authorization-server`, `GET /.well-known/oauth-protected-resource` | OAuth discovery metadata |
 | `POST /oauth/register`, `GET /oauth/authorize`, `POST /oauth/decision`, `POST /oauth/token` | OAuth flow (registration, consent, tokens) |
 | `GET/POST /api/documents`, `GET/PUT/DELETE /api/documents/:id` | Document CRUD |
-| `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD; `POST` accepts either `multipart/form-data` (a `file` field) or JSON with base64 `data`; every asset always has `id`, `url` (relative) and `public_url` (fully qualified); `/a/:id` redirects to the Vercel Blob URL |
+| `GET/POST /api/assets`, `DELETE /api/assets/:id`, `GET /a/:id` | Asset CRUD; `POST` accepts either `multipart/form-data` (a `file` field) or JSON with base64 `data`; `/a/:id` redirects to the Vercel Blob URL |
 | `POST /api/documents/:id/share`, `GET /api/documents/:id/shares`, `DELETE /api/shares/:token` | Manage share links |
 | `GET /s/:token`, `GET /api/share/:token` | View-only share page + its read-only data endpoint |
 | `GET/POST /api/tables`, `GET/PATCH/DELETE /api/tables/:id` | Table CRUD |
@@ -224,16 +216,9 @@ custom-connector flow requires OAuth for that endpoint.
   client juggling multiple authorization servers can't be tricked by a
   mixed-up code. The `X-Powered-By` header is disabled.
 
-- Asset blobs are `access: "public"` — anyone with a blob URL (or the
-  unguessable `/a/:id` redirect) can fetch it, which is what lets images
-  render on public share pages; deleting the asset deletes the blob.
-- Markdown is rendered without sanitization (documents are authored by you or
-  your Claude). Add a sanitizer (e.g. DOMPurify) before accepting untrusted
-  documents.
-
 ## Logging
 
-Every request and MCP tool call is logged as one JSON line (`src/log.ts`) —
+Every request and MCP tool call is logged as one JSON line (`src/log.js`) —
 via `console.log`/`console.error`, so it lands wherever your platform
 collects stdout/stderr (Vercel's log stream locally, or `npm run web`'s
 terminal). Every line carries a `traceId` (reused from Vercel's own request
@@ -248,36 +233,31 @@ creation/revocation, and every MCP tool call:
 {"ts":"...","event":"mcp.tool.call","traceId":"...","userId":"...","tool":"create_row"}
 {"ts":"...","event":"mcp.tool.result","traceId":"...","userId":"...","tool":"create_row","ms":6,"isError":false}
 ```
+- Asset blobs are `access: "public"` — anyone with a blob URL (or the
+  unguessable `/a/:id` redirect) can fetch it, which is what lets images
+  render on public share pages; deleting the asset deletes the blob.
+- Markdown is rendered without sanitization (documents are authored by you or
+  your Claude). Add a sanitizer (e.g. DOMPurify) before accepting untrusted
+  documents.
 
 ## Project layout
 
 ```
 LICENSE              # MIT
-api/index.ts         # Vercel serverless entry (wraps src/app.ts)
+api/index.js         # Vercel serverless entry (wraps src/app.js)
 vercel.json          # build config + rewrites (API paths -> function, rest -> SPA)
-shared/types.ts      # request/response interfaces shared by the backend and web/ frontend
-src/db.ts            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
-src/auth.ts          # sessions, API keys, login/register routes, auth middleware
-src/oauth.ts         # OAuth 2.1 provider: discovery, registration, consent, tokens
-src/tables.ts        # REST API for Tables: table/column/row CRUD, CSV import
-src/log.ts           # structured JSON logging (trace id + user id on every line)
-src/mcp.ts           # MCP tool definitions (served over /mcp)
-src/app.ts           # Express app: REST API, /mcp, OAuth routes, SPA fallback
-src/web-server.ts    # local entry point (app.listen)
-web/                 # React app (Vite + TypeScript): pages + design system (see web/DESIGN.md)
+src/db.js            # data layer: Neon Postgres + Vercel Blob (owner-scoped)
+src/auth.js          # sessions, API keys, login/register routes, auth middleware
+src/oauth.js         # OAuth 2.1 provider: discovery, registration, consent, tokens
+src/tables.js        # REST API for Tables: table/column/row CRUD, CSV import
+src/log.js           # structured JSON logging (trace id + user id on every line)
+src/mcp.js           # MCP tool definitions (served over /mcp)
+src/app.js           # Express app: REST API, /mcp, OAuth routes, SPA fallback
+src/web-server.js    # local entry point (app.listen)
+web/                 # React app (Vite): pages + design system (see web/DESIGN.md)
 scripts/dev-db.mjs   # local PGlite Postgres for development
 public/              # build output of web/ (gitignored; created by npm run build)
 ```
-
-The backend is plain TypeScript run directly by Node (`.ts` files, no build
-step) — Node 24+ strips type annotations natively at startup. `tsc --noEmit`
-(`npm run typecheck`, and `npm run typecheck --prefix web` for the frontend)
-is what actually type-checks; Node's stripping never does. `shared/types.ts`
-is the single source of truth for request/response shapes — imported by
-`src/db.ts`/`src/app.ts`/`src/tables.ts`/`src/mcp.ts` on the backend and by
-`web/src`'s components directly (Vite's dev server and build both resolve
-across the `web/` boundary into `shared/`), so the wire format can't drift
-between what a route returns and what a caller expects.
 
 ## Open source & self-hosting
 
