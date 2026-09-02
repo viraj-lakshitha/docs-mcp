@@ -3,9 +3,9 @@
 // cookie; MCP clients authenticate with an OAuth access token obtained via
 // the flow in src/oauth.ts, sent as `Authorization: Bearer dmat_...`.
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
-import * as store from "./db.ts";
-import { log } from "./log.ts";
-import type { User } from "../shared/types.ts";
+import * as store from "./db.js";
+import { log } from "./log.js";
+import type { User } from "../shared/types.js";
 
 const COOKIE_NAME = "docs_session";
 const ah =

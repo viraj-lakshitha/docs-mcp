@@ -18,12 +18,12 @@ import { fileURLToPath } from "node:url";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { buildServer } from "./mcp.ts";
-import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.ts";
-import { metadataRouter, oauthRouter, oauthCors } from "./oauth.ts";
-import { tablesRouter } from "./tables.ts";
-import { log, logError } from "./log.ts";
-import * as store from "./db.ts";
+import { buildServer } from "./mcp.js";
+import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
+import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
+import { tablesRouter } from "./tables.js";
+import { log, logError } from "./log.js";
+import * as store from "./db.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = express();

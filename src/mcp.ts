@@ -2,10 +2,10 @@
 // create and manage documents. Served over Streamable HTTP at /mcp (src/app.ts).
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import * as store from "./db.ts";
-import { parseCsv, coerceCell } from "./tables.ts";
-import { log, logError } from "./log.ts";
-import type { ColumnType, Document, DataTableWithColumns, TableColumn, TableRow } from "../shared/types.ts";
+import * as store from "./db.js";
+import { parseCsv, coerceCell } from "./tables.js";
+import { log, logError } from "./log.js";
+import type { ColumnType, Document, DataTableWithColumns, TableColumn, TableRow } from "../shared/types.js";
 
 const INSTRUCTIONS = `# Notes by Optiq Labs — MCP usage guide
 

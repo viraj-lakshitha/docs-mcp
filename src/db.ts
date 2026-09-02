@@ -34,7 +34,7 @@ import type {
   DataTableWithColumns,
   TableRow,
   RowsPage,
-} from "../shared/types.ts";
+} from "../shared/types.js";
 
 const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 if (!connectionString) {

@@ -38,10 +38,13 @@ pages, REST API, and the `/mcp` endpoint) is served from your project domain.
 
 ## Local development
 
-Requires Node.js 24+. The backend is TypeScript run directly — Node 24 strips
-types natively, so there's no compile step; `npm run typecheck` (backend) and
-`npm run typecheck --prefix web` (frontend) run `tsc --noEmit` for real type
-checking.
+Requires Node.js 24+. The backend is TypeScript run directly via
+[`tsx`](https://tsx.is) — no compile step, and unlike Node's own native
+type-stripping, `tsx` resolves the `.js`-suffixed relative imports in the
+source (the standard TypeScript `NodeNext` convention, also what Vercel's
+build expects) to their sibling `.ts` files. `npm run typecheck` (backend)
+and `npm run typecheck --prefix web` (frontend) run `tsc --noEmit` for real
+type checking — neither `tsx` nor Node's stripping does that.
 
 ```bash
 npm install
@@ -269,10 +272,16 @@ scripts/dev-db.mjs   # local PGlite Postgres for development
 public/              # build output of web/ (gitignored; created by npm run build)
 ```
 
-The backend is plain TypeScript run directly by Node (`.ts` files, no build
-step) — Node 24+ strips type annotations natively at startup. `tsc --noEmit`
-(`npm run typecheck`, and `npm run typecheck --prefix web` for the frontend)
-is what actually type-checks; Node's stripping never does. `shared/types.ts`
+The backend is plain TypeScript (`.ts` files, no build step): locally it runs
+under `tsx`, and in production Vercel's Node.js Function builder transpiles
+each file individually. Both expect the standard TypeScript `NodeNext`
+convention — relative imports use a literal `.js` extension even though the
+file on disk is `.ts` (e.g. `import "./app.js"` for `src/app.ts`) — so avoid
+`allowImportingTsExtensions`-style `.ts`-suffixed specifiers on the backend;
+they resolve fine under Node's own native type-stripping but silently break
+Vercel's build. `tsc --noEmit` (`npm run typecheck`, and
+`npm run typecheck --prefix web` for the frontend) is what actually
+type-checks; neither runtime does. `shared/types.ts`
 is the single source of truth for request/response shapes — imported by
 `src/db.ts`/`src/app.ts`/`src/tables.ts`/`src/mcp.ts` on the backend and by
 `web/src`'s components directly (Vite's dev server and build both resolve
