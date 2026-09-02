@@ -9,11 +9,12 @@
   },
   "type": "module",
   "scripts": {
-    "build": "npm install --prefix web && npm run build --prefix web",
-    "web": "node --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.ts",
+    "build": "npm install --prefix web && npm run build --prefix web && npm run build:api",
+    "build:api": "tsc -p tsconfig.build.json",
+    "web": "tsx --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.ts",
     "dev:web": "npm run dev --prefix web",
     "dev:db": "node scripts/dev-db.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run build:api && tsc --noEmit",
     "typecheck:web": "npm run typecheck --prefix web"
   },
   "engines": {
@@ -36,6 +37,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

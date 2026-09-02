@@ -14,18 +14,21 @@
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import path from "node:path";
 import crypto from "node:crypto";
-import { fileURLToPath } from "node:url";
 import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { buildServer } from "./mcp.ts";
-import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.ts";
-import { metadataRouter, oauthRouter, oauthCors } from "./oauth.ts";
-import { tablesRouter } from "./tables.ts";
-import { log, logError } from "./log.ts";
-import * as store from "./db.ts";
+import { buildServer } from "./mcp.js";
+import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
+import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
+import { tablesRouter } from "./tables.js";
+import { log, logError } from "./log.js";
+import * as store from "./db.js";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// process.cwd() (not a path derived from this file's own location) so this
+// keeps working regardless of how deep the compiled/run file sits relative
+// to the project root — both `npm run web` and Vercel's function runtime
+// launch with the project root as the working directory.
+const root = process.cwd();
 const app = express();
 // Don't advertise the framework in responses.
 app.disable("x-powered-by");

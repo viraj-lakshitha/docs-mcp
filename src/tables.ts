@@ -3,8 +3,8 @@
 // cookie, OAuth bearer token, or API key).
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import { parse } from "csv-parse/sync";
-import * as store from "./db.ts";
-import type { ColumnType, ImportError, TableColumn } from "../shared/types.ts";
+import * as store from "./db.js";
+import type { ColumnType, ImportError, TableColumn } from "../shared/types.js";
 
 const ah =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>): RequestHandler =>

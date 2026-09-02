@@ -8,10 +8,10 @@
 // links into the login portal when signed out.
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
 import crypto from "node:crypto";
-import * as store from "./db.ts";
-import { sessionUser } from "./auth.ts";
-import { log } from "./log.ts";
-import type { OAuthClient, User } from "../shared/types.ts";
+import * as store from "./db.js";
+import { sessionUser } from "./auth.js";
+import { log } from "./log.js";
+import type { OAuthClient, User } from "../shared/types.js";
 
 const ah =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>): RequestHandler =>
