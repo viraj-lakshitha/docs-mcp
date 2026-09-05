@@ -8,7 +8,8 @@
 //   - /api/connections, /api/api-keys session cookie or OAuth bearer token (account management, not API-key-eligible)
 //   - /api/documents, /api/assets,
 //     /api/tables, ...                session cookie, OAuth bearer token, or API key (dmcp_...)
-//   - /mcp                            OAuth bearer token ONLY — API keys are never valid here
+//   - /mcp                            OAuth bearer token ONLY — neither API keys nor session
+//                                     cookies are valid here (see bearerUser in src/auth.ts)
 //   - /s/:token, /api/share/:token    public — that's what a share link is
 //   - /a/:id                          public — image embeds on share pages
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
@@ -18,10 +19,11 @@ import multer from "multer";
 import rateLimit from "express-rate-limit";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { buildServer } from "./mcp.js";
-import { authenticate, requireAuth, requireApiAuth, authRouter } from "./auth.js";
+import { bearerUser, requireAuth, requireApiAuth, authRouter } from "./auth.js";
 import { metadataRouter, oauthRouter, oauthCors } from "./oauth.js";
 import { tablesRouter } from "./tables.js";
 import { log, logError } from "./log.js";
+import { securityHeaders, sameOriginOnly, isAllowedUploadMime, allowedUploadMimeList } from "./security.js";
 import * as store from "./db.js";
 
 // process.cwd() (not a path derived from this file's own location) so this
@@ -32,6 +34,11 @@ const root = process.cwd();
 const app = express();
 // Don't advertise the framework in responses.
 app.disable("x-powered-by");
+// Before anything else, so even error responses and static files carry them.
+// Note these only cover what this app serves: on Vercel the SPA shell comes
+// off the CDN and gets the same headers from the `headers` block in
+// vercel.json instead. scripts/check-csp.mjs keeps the two in step.
+app.use(securityHeaders);
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: false }));
 
@@ -72,6 +79,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // store like Redis.
 const mcpLimiter = rateLimit({ windowMs: 60_000, limit: 60, standardHeaders: true, legacyHeaders: false });
 const apiLimiter = rateLimit({ windowMs: 60_000, limit: 300, standardHeaders: true, legacyHeaders: false });
+// /oauth/token and /oauth/register are unauthenticated by design (RFC 7591
+// dynamic client registration, and the token exchange itself), so without
+// their own bucket they were the only completely unthrottled write surface.
+const oauthLimiter = rateLimit({ windowMs: 60_000, limit: 30, standardHeaders: true, legacyHeaders: false });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -88,11 +99,16 @@ const mcpUnauthorized = (res: Response) => {
 };
 
 app.use("/api", apiLimiter);
+// Second line of defence behind the session cookie's SameSite=Lax. Mounted on
+// /api only: /mcp and /oauth authenticate with bearer tokens, which browsers
+// never attach on their own, so neither is CSRF-able to begin with.
+app.use("/api", sameOriginOnly);
 
 // ---- auth & OAuth provider ----
 
 app.use("/api/auth", authRouter());
 app.use(metadataRouter());
+app.use("/oauth", oauthLimiter);
 app.use("/oauth", oauthRouter());
 
 // ---- MCP over HTTP ----
@@ -107,7 +123,7 @@ app.post(
   "/mcp",
   oauthCors,
   ah(async (req, res) => {
-    const userId = await authenticate(req);
+    const userId = await bearerUser(req);
     if (!userId) return void mcpUnauthorized(res);
     req.userId = userId; // picked up by the access-log middleware's res.on("finish")
     const server = buildServer(userId, req.traceId);
@@ -138,7 +154,7 @@ app.get(
   "/mcp",
   oauthCors,
   ah(async (req, res) => {
-    const userId = await authenticate(req);
+    const userId = await bearerUser(req);
     if (!userId) return void mcpUnauthorized(res);
     req.userId = userId;
     res.status(405).json({ error: "method not allowed" });
@@ -148,7 +164,7 @@ app.delete(
   "/mcp",
   oauthCors,
   ah(async (req, res) => {
-    const userId = await authenticate(req);
+    const userId = await bearerUser(req);
     if (!userId) return void mcpUnauthorized(res);
     req.userId = userId;
     res.status(405).json({ error: "method not allowed" });
@@ -278,11 +294,22 @@ app.post(
   requireApiAuth,
   upload.single("file"),
   ah(async (req, res) => {
+    // Blobs are stored with public access and reachable through /a/:id on this
+    // app's own domain, so the type has to be one we're willing to host. Both
+    // branches check it; the caller controls `mime` either way.
+    const rejectMime = (mime: string) =>
+      res.status(415).json({
+        error: `unsupported file type: ${mime}`,
+        allowed: allowedUploadMimeList(),
+      });
+
     if (req.file) {
       if (req.file.size === 0) return void res.status(400).json({ error: "uploaded file is empty" });
+      const mime = req.file.mimetype || "application/octet-stream";
+      if (!isAllowedUploadMime(mime)) return void rejectMime(mime);
       const asset = await store.createAsset(req.userId!, {
         filename: req.file.originalname,
-        mime: req.file.mimetype || "application/octet-stream",
+        mime,
         data: req.file.buffer,
       });
       return void res.status(201).json(asset);
@@ -293,6 +320,7 @@ app.post(
         .status(400)
         .json({ error: "filename, mime and data (base64) are required — or send multipart/form-data with a 'file' field" });
     }
+    if (typeof mime !== "string" || !isAllowedUploadMime(mime)) return void rejectMime(String(mime));
     const buf = Buffer.from(data, "base64");
     if (buf.length === 0) return void res.status(400).json({ error: "data decoded to an empty file" });
     res.status(201).json(await store.createAsset(req.userId!, { filename, mime, data: buf }));
@@ -392,7 +420,14 @@ app.use((err: Error & { status?: number; name: string }, req: Request, res: Resp
   });
   if (res.headersSent) return;
   if (err.name === "MulterError") return void res.status(400).json({ error: err.message });
-  res.status(err.status || 500).json({ error: err.message || "internal error" });
+  // Only echo the message for errors this app raised deliberately — domain
+  // code signals those by attaching a 4xx `status` (see src/tables.ts). An
+  // unlabelled error is a bug or a driver failure, and its message can carry
+  // schema details, connection strings or row contents, so callers get a
+  // constant. Nothing is lost: the real message and stack went to logError
+  // above, correlated by traceId.
+  const status = err.status || 500;
+  res.status(status).json({ error: status < 500 ? err.message : "internal error" });
 });
 
 export default app;

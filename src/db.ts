@@ -11,6 +11,7 @@
 import pg, { type QueryResultRow } from "pg";
 import { put, del } from "@vercel/blob";
 import crypto from "node:crypto";
+import { isInlineSafeMime } from "./security.js";
 import type {
   User,
   UserRecord,
@@ -497,13 +498,25 @@ export async function createAsset(
     contentType: mime,
     addRandomSuffix: false,
   });
+  // put() returns two URLs for the same object: `url`, served inline, and
+  // `downloadUrl`, which sends content-disposition: attachment. Point /a/:id
+  // at the inline one only for formats a browser renders in an <img> and that
+  // carry no script of their own; everything else downloads rather than
+  // rendering, so a public blob URL can't be used to host a page.
+  //
+  // SVG is the case that motivates the split. It can carry script, but script
+  // in an SVG loaded through <img> never executes, so embeds keep working
+  // while direct navigation stops being a hosting primitive. (Disposition is
+  // chosen by the Blob service per URL, not settable on put(), which is why
+  // this is a choice of URL rather than an upload option.)
+  const blobUrl = isInlineSafeMime(mime) ? blob.url : blob.downloadUrl;
   const asset = {
     id,
     user_id: userId,
     filename,
     mime,
     size: data.length,
-    blob_url: blob.url,
+    blob_url: blobUrl,
     blob_pathname: blob.pathname,
     created_at: now(),
   };

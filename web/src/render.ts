@@ -2,7 +2,15 @@
 // Markdown via marked; ```mermaid and ```excalidraw fences become SVG.
 // mermaid and excalidraw are dynamically imported so they land in separate
 // chunks and only load when a document actually uses them.
+//
+// Everything assigned to innerHTML here goes through DOMPurify first. This is
+// not optional: /s/:token renders documents fetched from the public,
+// unauthenticated /api/share/:token, so the markdown is attacker-controlled
+// with respect to whoever opens the link. marked does not escape HTML (its
+// `sanitize` option was removed in v5), so without this a shared document can
+// run script on this origin in a viewer's browser.
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 declare global {
   interface Window {
@@ -92,7 +100,11 @@ async function getMermaid() {
   if (mermaidTheme !== wanted) {
     mermaid.initialize({
       startOnLoad: false,
-      securityLevel: "loose",
+      // "strict" turns on Mermaid's own DOMPurify pass and disables the
+      // `click`/callback directives, which would otherwise let diagram source
+      // bind script to a node — an injection path independent of the markdown
+      // one, and reachable by anyone who can get a share link opened.
+      securityLevel: "strict",
       theme: "base",
       fontFamily: MERMAID_FONT,
       themeVariables: MERMAID_VARS[wanted],
@@ -111,6 +123,35 @@ async function getExcalidraw() {
 const FENCE_RE = /```(mermaid|excalidraw)[^\S\n]*\n([\s\S]*?)```/g;
 let renderSeq = 0;
 
+// The diagram placeholders below carry their index in `data-block`. DOMPurify
+// keeps data-* attributes by default (ALLOW_DATA_ATTR), so the placeholders
+// survive sanitization and can still be found by the querySelectorAll pass —
+// don't set ALLOW_DATA_ATTR:false here without rewriting that lookup.
+const sanitizeMarkup = (html: string): string => DOMPurify.sanitize(html);
+
+// Diagram SVG needs a wider allow-list than the markdown above. Mermaid draws
+// every flowchart node label as HTML inside a <foreignObject>, and DOMPurify
+// blocks that twice over by default: foreignObject is not in its svg profile,
+// and — separately — HTML nested inside SVG is dropped unless the parent is a
+// declared HTML integration point, for which DOMPurify ships only
+// `annotation-xml`. Allowing the tag alone is therefore not enough; it yields
+// an empty <foreignObject> and diagrams that render as blank boxes.
+//
+// These are the same three options Mermaid passes to its own bundled DOMPurify
+// when securityLevel is anything but "loose" (see mermaid's render()), so this
+// pass is configured to agree with the one that produced the markup rather
+// than silently undo it. foreignObject really is an HTML integration point per
+// the HTML spec — DOMPurify's default is conservative about historical parser
+// mXSS, not a statement that this combination is unsound. Script elements,
+// event-handler attributes and javascript: URLs are still stripped, which is
+// the part that matters.
+const sanitizeSvg = (svg: string): string =>
+  DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true, html: true },
+    ADD_TAGS: ["foreignObject"],
+    HTML_INTEGRATION_POINTS: { foreignobject: true },
+  });
+
 // Renders markdown into `container`, then asynchronously replaces diagram
 // placeholders with rendered SVG.
 export async function renderDocument(container: HTMLElement, markdown: string | undefined): Promise<void> {
@@ -120,7 +161,7 @@ export async function renderDocument(container: HTMLElement, markdown: string | 
     return `\n<div class="diagram" data-block="${blocks.length - 1}"></div>\n`;
   });
 
-  container.innerHTML = await marked.parse(source);
+  container.innerHTML = sanitizeMarkup(await marked.parse(source));
 
   const jobs = [...container.querySelectorAll<HTMLElement>(".diagram[data-block]")].map(async (el) => {
     const { lang, code } = blocks[Number(el.dataset.block)]!;
@@ -128,7 +169,7 @@ export async function renderDocument(container: HTMLElement, markdown: string | 
       if (lang === "mermaid") {
         const mermaid = await getMermaid();
         const { svg } = await mermaid.render(`mmd-${++renderSeq}`, code);
-        el.innerHTML = svg;
+        el.innerHTML = sanitizeSvg(svg);
       } else {
         const { exportToSvg } = await getExcalidraw();
         const scene = JSON.parse(code);
@@ -143,7 +184,11 @@ export async function renderDocument(container: HTMLElement, markdown: string | 
         });
         svg.removeAttribute("width");
         svg.removeAttribute("height");
-        el.replaceChildren(svg);
+        // Excalidraw builds this SVG with DOM APIs rather than innerHTML, but
+        // the scene it builds it from is attacker-controlled on a share page —
+        // including `appState`, which is spread in verbatim above — so it goes
+        // through the same sanitizer as the Mermaid output.
+        el.innerHTML = sanitizeSvg(svg.outerHTML);
       }
     } catch (err) {
       el.classList.add("diagram-error");

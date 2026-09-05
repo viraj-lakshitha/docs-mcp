@@ -3,6 +3,7 @@
 // cookie; MCP clients authenticate with an OAuth access token obtained via
 // the flow in src/oauth.ts, sent as `Authorization: Bearer dmat_...`.
 import express, { type Request, type Response, type NextFunction, type RequestHandler } from "express";
+import rateLimit from "express-rate-limit";
 import * as store from "./db.js";
 import { log } from "./log.js";
 import type { User } from "../shared/types.js";
@@ -51,6 +52,20 @@ export async function authenticate(req: Request): Promise<string | null> {
   return null;
 }
 
+// Resolves the acting user from an OAuth access token and nothing else — the
+// mirror image of sessionUser() below, and what /mcp uses.
+//
+// /mcp previously went through authenticate(), which falls through to the
+// session cookie, so a logged-in browser could drive the MCP endpoint despite
+// the docs saying bearer-only. SameSite=Lax meant that was not reachable
+// cross-site, but the endpoint's contract and its code disagreed, and the
+// safe reading is the narrower one: MCP clients always hold a token.
+export async function bearerUser(req: Request): Promise<string | null> {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return null;
+  return store.getUserIdForAccessToken(header.slice(7).trim());
+}
+
 // Resolves the signed-in browser user (session cookie only) — used by the
 // OAuth authorize/consent pages, which must not accept bearer tokens.
 export async function sessionUser(req: Request): Promise<User | null> {
@@ -91,11 +106,27 @@ export const requireApiAuth = ah(async (req, res, next) => {
   next();
 });
 
+// Credential-guessing bucket for the two endpoints that take a password. The
+// /api limiter these sit under allows 300/min, which is plenty for a person
+// filling in a form and plenty for an attacker too. Same per-instance caveat
+// as the other limiters (see the comment in src/app.ts): on Vercel this bounds
+// one hot instance rather than the whole deployment.
+const authLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Failures are what we care about; a user who logs in successfully on the
+  // first try shouldn't spend budget shared with a bot on the same NAT.
+  skipSuccessfulRequests: true,
+});
+
 export function authRouter() {
   const router = express.Router();
 
   router.post(
     "/register",
+    authLimiter,
     ah(async (req, res) => {
       if (process.env.DOCS_MCP_DISABLE_SIGNUP === "true") {
         return void res.status(403).json({ error: "sign-up is disabled" });
@@ -122,6 +153,7 @@ export function authRouter() {
 
   router.post(
     "/login",
+    authLimiter,
     ah(async (req, res) => {
       const { email, password } = req.body ?? {};
       const user = email && password ? await store.getUserByEmail(email) : null;
