@@ -31,14 +31,57 @@ export function Brand({
   );
 }
 
-export function BrandLogo({ size = 28 }: { size?: number }) {
+// The logo mark, served from web/public/logo-mark.svg — the same vector every
+// favicon, app icon and social card is generated from (see brand/build-assets.mjs).
+// It is deliberately an <img> rather than inlined JSX so there is exactly one
+// copy of the artwork: change brand/mark.svg, re-run the generator, and the
+// app, the browser tab and the Slack unfurl all move together.
+//
+// `tile` draws the rounded brand plate behind it (sidebar, landing header);
+// without it the mark sits on whatever surface it is placed on, which is what
+// the login panel's gradient wants.
+/**
+ * `size` is the size of the whole plate, not the glyph — the mark is inset so
+ * optical weight matches across contexts. Sizing is inline rather than left to
+ * per-context CSS, so one prop drives both box and glyph and they can't drift.
+ *
+ * variant:
+ *   "tint"  mark on a themed tint plate — for app surfaces (sidebar, header)
+ *   "solid" the full app-icon tile, cream plate included. Required anywhere the
+ *           backdrop is brand-coloured: the mark is terracotta, so on the login
+ *           panel's terracotta gradient the "tint" plate leaves it invisible.
+ *   "bare"  the mark alone, no plate
+ */
+export function BrandLogo({
+  size = 32,
+  variant = "tint",
+}: {
+  size?: number;
+  variant?: "tint" | "solid" | "bare";
+}) {
+  if (variant === "solid") {
+    return (
+      <img
+        src="/logo-tile-light.svg"
+        alt=""
+        aria-hidden="true"
+        width={size}
+        height={size}
+        draggable={false}
+        style={{ borderRadius: Math.round(size * 0.223), display: "block" }}
+      />
+    );
+  }
+
+  const tint = variant === "tint";
+  const glyph = Math.round(size * (tint ? 0.62 : 1));
   return (
-    <div className="brand-logo" aria-hidden="true">
-      <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <path d="M14 2v6h6" />
-        <path d="M8 13h8M8 17h5" />
-      </svg>
+    <div
+      className={tint ? "brand-logo" : undefined}
+      aria-hidden="true"
+      style={tint ? { width: size, height: size } : undefined}
+    >
+      <img src="/logo-mark.svg" alt="" width={glyph} height={glyph} draggable={false} />
     </div>
   );
 }

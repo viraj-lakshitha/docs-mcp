@@ -80,7 +80,7 @@ export default function Landing() {
       <header className={`landing-header${scrolled ? " scrolled" : ""}`}>
         <div className="landing-header__inner">
           <a href="/" className="landing-header__brand">
-            <BrandLogo size={20} />
+            <BrandLogo size={32} />
             <Brand as="span" />
           </a>
           <nav className="landing-header__nav" aria-label="Page sections">

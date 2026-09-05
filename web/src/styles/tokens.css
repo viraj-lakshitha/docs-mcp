@@ -38,8 +38,21 @@
   /* ---------- brand ---------- */
   --color-accent: var(--color-bg-brand-solid);
   --color-accent-strong: var(--color-bg-brand-solid_hover);
-  --color-accent-soft: var(--color-bg-brand-primary);
-  --color-accent-softer: var(--color-bg-brand-primary_alt);
+
+  /* NOT aliased to Untitled UI's --color-bg-brand-primary. That token is
+     brand-50 in light mode but brand-500 in dark — it is meant for filled
+     brand badges, not tints. styles.css uses these for subtle backgrounds
+     (active nav item, icon plates, feature-card icons), so in dark mode the
+     alias turned every one of them into a solid terracotta block with
+     unreadable text. A color-mix stays proportionally subtle in both themes. */
+  --color-accent-soft: color-mix(in oklab, var(--color-brand-600) 14%, transparent);
+  --color-accent-softer: color-mix(in oklab, var(--color-brand-600) 7%, transparent);
+
+  /* Readable brand text ON that tint. --color-accent-strong can't serve here:
+     styles.css also uses it as a solid button-hover fill, and the value that
+     works as a fill is too dark to read on a tinted background in dark mode. */
+  --color-accent-text: var(--color-brand-700);
+
   --color-on-accent: var(--color-text-white);
 
   /* ---------- destructive ---------- */
@@ -77,7 +90,13 @@
   --touch-target: 44px;
 
   /* ---------- focus & motion ---------- */
-  --focus-ring: 0 0 0 3px var(--color-bg-brand-primary);
-  --focus-ring-danger: 0 0 0 3px var(--color-bg-error-primary);
+  --focus-ring: 0 0 0 3px var(--color-accent-soft);
+  --focus-ring-danger: 0 0 0 3px color-mix(in oklab, var(--color-red-600) 18%, transparent);
   --transition-fast: var(--duration-fast) var(--ease-out-quad);
+}
+
+/* On a dark canvas brand-700 is too dark to read against the tint; step up the
+   ramp. Same rule as the palette's --color-brand-fg. */
+:root.dark-mode {
+  --color-accent-text: var(--color-brand-400);
 }

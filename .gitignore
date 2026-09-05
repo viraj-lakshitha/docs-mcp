@@ -5,3 +5,7 @@ data/
 .env*
 .vercel
 *.log
+
+# brand asset generator scratch
+brand/.tmp/
+brand/.preview*.png
