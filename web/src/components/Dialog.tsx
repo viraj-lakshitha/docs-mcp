@@ -1,35 +1,55 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Dialog as AriaDialog, Modal, ModalOverlay } from "../components/application/modals/modal.tsx";
 import { Button } from "./Button.tsx";
 import { Field } from "./Field.tsx";
 
-// Modal dialog primitive: overlay + card, Escape/overlay-click to dismiss.
+// Modal dialog primitive, built on React Aria's Modal.
+//
+// Replaces a hand-rolled overlay that listened for Escape but had no focus
+// trap and no focus restore: Tab walked straight out of the dialog into the
+// page behind it, and closing dropped focus to <body>. React Aria handles
+// focus containment, restore-on-close, aria-modal, scroll locking and
+// outside-press, and `tailwindcss-animate` gives it an enter/exit transition
+// (the old dialog appeared instantly).
 export function Dialog({
   title,
   onClose,
   children,
   actions,
+  size = "sm",
 }: {
   title: string;
   onClose?: () => void;
   children?: ReactNode;
   actions?: ReactNode;
+  size?: "sm" | "md";
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose?.();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  return (
+    <ModalOverlay
+      isOpen
+      isDismissable={Boolean(onClose)}
+      onOpenChange={(open) => !open && onClose?.()}
+    >
+      <Modal className={size === "md" ? "w-full max-w-2xl" : "w-full max-w-md"}>
+        <AriaDialog aria-label={title}>
+          <div className="flex flex-col gap-4 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-primary">{title}</h2>
+            <div className="flex flex-col gap-3 text-md text-tertiary">{children}</div>
+            {actions && <div className="mt-1 flex justify-end gap-3">{actions}</div>}
+          </div>
+        </AriaDialog>
+      </Modal>
+    </ModalOverlay>
+  );
+}
 
+function DialogError({ message }: { message: string }) {
   return (
     <div
-      className="dialog-overlay"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}
+      role="alert"
+      className="rounded-lg border border-error_subtle bg-error-primary px-3 py-2 text-md text-error-primary"
     >
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
-        <h2 className="dialog__title">{title}</h2>
-        <div className="dialog__body">{children}</div>
-        {actions && <div className="dialog__actions">{actions}</div>}
-      </div>
+      {message}
     </div>
   );
 }
@@ -80,8 +100,8 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p style={{ margin: 0 }}>{message}</p>
-      {error && <div className="alert" role="alert">{error}</div>}
+      <p className="m-0">{message}</p>
+      {error && <DialogError message={error} />}
     </Dialog>
   );
 }
@@ -145,38 +165,60 @@ export function PromptDialog({
           />
         )}
       </Field>
-      {error && <div className="alert" role="alert">{error}</div>}
+      {error && <DialogError message={error} />}
     </Dialog>
+  );
+}
+
+// A read-only value with a copy button — used for share links and API keys,
+// which are both "here is a string, take it with you" moments.
+function CopyableValue({ value, mono = false }: { value: string; mono?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Clipboard API needs a secure context; fall back to the old selection
+      // trick so this still works over plain http on a LAN address.
+      inputRef.current?.select();
+      document.execCommand("copy");
+    }
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="flex gap-2">
+      <input
+        ref={inputRef}
+        className={`input flex-1 ${mono ? "font-mono text-sm" : ""}`}
+        readOnly
+        value={value}
+        onFocus={(e) => e.target.select()}
+      />
+      <Button onClick={copy}>{copied ? "Copied!" : "Copy"}</Button>
+    </div>
   );
 }
 
 // Displays a freshly minted share link with a copy button.
 export function ShareLinkDialog({ url, onClose }: { url: string; onClose: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      inputRef.current?.select();
-      document.execCommand("copy");
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
     <Dialog
       title="View-only link created"
       onClose={onClose}
       actions={<Button variant="primary" onClick={onClose}>Done</Button>}
     >
-      <p style={{ margin: 0 }}>
+      <p className="m-0">
         Anyone with this link can read the document but can’t edit it. You can revoke it later.
       </p>
-      <div className="share-url-row">
-        <input ref={inputRef} className="input" readOnly value={url} onFocus={(e) => e.target.select()} />
-        <Button onClick={copy}>{copied ? "Copied!" : "Copy"}</Button>
-      </div>
+      <CopyableValue value={url} mono />
     </Dialog>
   );
 }
@@ -194,29 +236,14 @@ export function SecretRevealDialog({
   warning: string;
   onClose: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(secret);
-    } catch {
-      inputRef.current?.select();
-      document.execCommand("copy");
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
     <Dialog
       title={title}
       onClose={onClose}
       actions={<Button variant="primary" onClick={onClose}>Done</Button>}
     >
-      <p style={{ margin: 0 }}>{warning}</p>
-      <div className="share-url-row">
-        <input ref={inputRef} className="input" readOnly value={secret} onFocus={(e) => e.target.select()} />
-        <Button onClick={copy}>{copied ? "Copied!" : "Copy"}</Button>
-      </div>
+      <p className="m-0">{warning}</p>
+      <CopyableValue value={secret} mono />
     </Dialog>
   );
 }

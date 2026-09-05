@@ -26,13 +26,56 @@ never shows editor buttons and vice versa:
 Section choice lives in React state, not the URL — `NotesView` owns the hash
 (`#<document-id>`) for its own deep-linking, so the two don't collide.
 
-## Tokens (`src/styles/tokens.css`)
+## Styling architecture (`src/styles/`)
 
-All visual values are CSS custom properties: color (`--color-*`), type scale
-(`--text-xs` … `--text-2xl`, weights, leading), 4px spacing scale
-(`--space-1` … `--space-9`), radii (`--radius-sm|md|lg|xl|full`), elevation
-(`--shadow-sm|md|lg`), focus rings, motion, and control heights. Components
-never use raw hex/px values.
+Tailwind CSS v4 + [Untitled UI React](https://www.untitledui.com/react)
+(React Aria under the hood), with **Motion** (motion.dev) for animation.
+
+| File | Role |
+| --- | --- |
+| `index.css` | the only stylesheet `main.tsx` imports; declares cascade layer order and loads everything below |
+| `uui/theme.css` | Untitled UI's token system, **vendored verbatim** so `npx untitledui@latest upgrade` stays a clean diff. Never edit. |
+| `palette.css` | **the only file that defines colour values.** Overrides the primitive ramps Untitled UI dereferences |
+| `prose.css` | document typography for rendered markdown (`.rendered`) |
+| `tokens.css` | temporary shim aliasing the old BEM token names onto Untitled UI's. Deleted with `styles.css`. |
+| `styles.css` | the pre-Tailwind BEM stylesheet, being retired |
+
+### Why `palette.css` is so small
+
+Untitled UI's theme is two layers: primitive ramps (`--color-brand-*`,
+`--color-neutral-*`, `--color-red-*`) and ~350 semantic tokens that are all
+`var()` references onto them (`--color-text-primary: var(--color-neutral-900)`).
+Replacing the ramps re-skins the entire system — light and dark, every
+component — without touching their 856 lines. We ship terracotta instead of
+their purple, and a warm stone neutral instead of Tailwind's cool grey.
+
+Use semantic utilities (`bg-primary`, `text-tertiary`, `border-secondary`),
+never raw colours. Note the inversion: `bg-primary` is the *card* tone,
+`bg-secondary` is the *page* tone.
+
+### Cascade layers — load-bearing
+
+```
+theme -> base -> legacy -> components -> utilities
+```
+
+`legacy` sits **above** `base` so Tailwind's Preflight doesn't strip the old
+BEM styles, and **below** `utilities` so new Tailwind classes win without
+`!important`. Preflight also zeroes the margins and list markers that
+`marked`'s raw HTML output depends on — `prose.css` re-asserts them inside
+`base`, after Preflight. Removing it collapses every rendered document, the
+share page and the landing demo simultaneously.
+
+### Dark mode
+
+Class-based (`.dark-mode` on `<html>`), so an explicit choice beats the OS.
+Three things must stay in sync: `DARK_CLASS` in `hooks/useTheme.ts`, the
+`@custom-variant dark` in `index.css`, and the pre-paint inline script in
+`index.html` that sets the class before first paint to avoid a flash.
+
+Mermaid and Excalidraw bake colours into their SVG output at render time, so
+`render.ts` re-initialises Mermaid on theme change and components that render
+documents depend on `useResolvedTheme()` to re-render.
 
 ## Breakpoints (`src/breakpoints.js` + tokens header)
 
