@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { renderDocument } from "../../render.ts";
+import { useResolvedTheme } from "../../hooks/useTheme.ts";
 
 const SAMPLE_DOC = `# Payments service — design notes
 
@@ -17,9 +18,10 @@ Try it: connect Notes to Claude and ask it to draft one of your own.
 // the diagrams claim instead of just asserting it.
 export function LandingDemo() {
   const ref = useRef<HTMLDivElement>(null);
+  const theme = useResolvedTheme();
   useEffect(() => {
     if (ref.current) renderDocument(ref.current, SAMPLE_DOC);
-  }, []);
+  }, [theme]);
 
   return (
     <div className="landing-demo">

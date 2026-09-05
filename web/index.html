@@ -3,7 +3,25 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f7f5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)" />
+    <!-- Sets the theme class before first paint so a dark-mode user never sees
+         a white flash. Must stay in sync with STORAGE_KEY and DARK_CLASS in
+         src/hooks/useTheme.ts. Touches only documentElement.classList, which is
+         outside React's hydration root, so it cannot cause a mismatch. -->
+    <script>
+      (function () {
+        try {
+          var c = localStorage.getItem("notes:theme");
+          var dark =
+            c === "dark" ||
+            ((c === "system" || !c) && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark-mode");
+        } catch (e) {
+          /* private mode: fall through to light */
+        }
+      })();
+    </script>
     <title>Notes — by Optiq Labs</title>
     <meta name="description" content="The workspace Claude actually keeps your documents in. Connect Notes to Claude over MCP and every document, Mermaid diagram, and Excalidraw sketch it creates lives in one organized, shareable place — something Google Docs and Claude's own chat can't do." />
     <meta property="og:title" content="Notes — the workspace Claude actually keeps your documents in" />

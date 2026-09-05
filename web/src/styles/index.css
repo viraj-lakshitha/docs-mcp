@@ -1,0 +1,31 @@
+/* ============================================================
+   Stylesheet entry — imported once from main.tsx
+
+   LAYER ORDER IS LOAD-BEARING. Declaring it up front fixes the
+   cascade regardless of import order below:
+
+     theme       Tailwind's own variable defaults + our @theme
+     base        Preflight, then prose.css re-asserting document
+                 typography that Preflight strips
+     legacy      the pre-Tailwind BEM stylesheet. Sits ABOVE base
+                 so the existing app is unaffected by Preflight,
+                 and BELOW utilities so new Tailwind classes win
+                 without !important. Deleted in Phase 4.
+     components  new component styles
+     utilities   Tailwind utilities
+
+   Unlayered CSS would beat all of these, so nothing here is
+   unlayered by accident.
+   ============================================================ */
+
+@layer theme, base, legacy, components, utilities;
+
+@import "tailwindcss";
+@import "./theme.css";
+@import "./prose.css";
+@import "../styles.css" layer(legacy);
+
+/* Tailwind v4 infers content sources from the project root. Being
+   explicit avoids surprises from the .gitignore'd `public/` build
+   output and keeps scanning to the app source. */
+@source "../**/*.{ts,tsx}";
