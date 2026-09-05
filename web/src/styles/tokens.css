@@ -2,54 +2,58 @@
    LEGACY COMPATIBILITY SHIM — temporary, deleted in Phase 4.
 
    `styles.css` (the pre-Tailwind BEM stylesheet) references ~30
-   token names that no longer own their own values. Rather than
-   rewrite 848 lines of CSS in one pass, each old name is aliased
-   to its replacement in styles/theme.css.
+   token names that no longer own their values. Rather than rewrite
+   848 lines of CSS in one pass, each old name is aliased onto its
+   Untitled UI equivalent.
 
-   Two things follow from that, both intentional:
+   Two consequences, both intended:
 
    1. The existing BEM components inherit dark mode for free.
-      Flipping `.dark-mode` re-points --color-canvas / --color-fg
-      / --color-line, and every `var(--color-bg)` in styles.css
-      follows without touching styles.css at all.
+      Toggling `.dark-mode` re-points Untitled UI's semantic tokens,
+      and every `var(--color-bg)` in styles.css follows without
+      styles.css being touched.
 
-   2. Names that used to be declared here — --text-*, --shadow-*,
-      --radius-*, --font-*, --control-height, --leading-* — are
-      GONE from this file and now come from @theme. Declaring them
-      in both places would make the legacy layer shadow @theme
-      (layer order beats specificity), so Tailwind utilities like
-      `text-md` and `shadow-sm` would silently resolve to the old
-      values. Single ownership avoids that trap.
+   2. Names this file used to declare — --text-*, --shadow-*,
+      --radius-*, --font-*, --control-height, --leading-* — are GONE
+      and now come from @theme. Declaring them in both places would
+      make the legacy layer shadow @theme (layer order beats
+      specificity), so Tailwind utilities like `text-md` and
+      `shadow-sm` would silently resolve to the old values. Single
+      ownership avoids that trap.
 
-   Consequence: the old UI picks up the corrected type scale
-   (whole-pixel sizes, 15px body) and the new elevation ramp
-   immediately, rather than jumping at Phase 4. That is the
-   intended direction of travel, not a regression.
-
-   Do not add anything to this file. New tokens go in theme.css.
+   Do not add anything here. New tokens go in palette.css.
    ============================================================ */
 
 :root {
-  /* ---------- colour aliases ---------- */
-  --color-bg: var(--color-canvas);
-  --color-surface: var(--color-panel);
-  --color-border: var(--color-line);
-  --color-text: var(--color-fg);
-  --color-muted: var(--color-fg-muted);
+  /* ---------- surfaces ----------
+     Untitled UI inverts the intuitive naming: bg-primary is the
+     card/surface tone (white in light mode) and bg-secondary is the
+     page tone. The old names map the other way round. */
+  --color-bg: var(--color-bg-secondary);
+  --color-surface: var(--color-bg-primary);
+  --color-border: var(--color-border-secondary);
+  --color-text: var(--color-text-primary);
+  --color-muted: var(--color-text-tertiary);
 
-  --color-accent: var(--color-brand);
-  --color-accent-strong: var(--color-brand-hover);
-  --color-accent-soft: var(--color-brand-tint);
-  --color-accent-softer: var(--color-brand-tint-soft);
-  --color-on-accent: var(--color-fg-onbrand);
+  /* ---------- brand ---------- */
+  --color-accent: var(--color-bg-brand-solid);
+  --color-accent-strong: var(--color-bg-brand-solid_hover);
+  --color-accent-soft: var(--color-bg-brand-primary);
+  --color-accent-softer: var(--color-bg-brand-primary_alt);
+  --color-on-accent: var(--color-text-white);
 
-  --color-danger: var(--color-critical);
-  --color-danger-soft: var(--color-critical-tint);
-  --color-danger-border: var(--color-critical-200);
+  /* ---------- destructive ---------- */
+  --color-danger: var(--color-text-error-primary);
+  --color-danger-soft: var(--color-bg-error-primary);
+  --color-danger-border: var(--color-border-error_subtle);
+
+  --color-overlay: color-mix(in oklab, var(--color-neutral-950) 55%, transparent);
+  /* Translucent backdrop for sticky/blurred chrome. Was a hardcoded
+     rgba(255,255,255,.85) that stayed white in dark mode. */
+  --color-glass: color-mix(in oklab, var(--color-bg-primary) 85%, transparent);
 
   /* ---------- font weights ----------
-     Kept: Tailwind's namespace is --font-weight-*, so there is
-     no collision with @theme. */
+     Kept: Tailwind's namespace is --font-weight-*, so no collision. */
   --weight-normal: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -67,8 +71,13 @@
   --space-8: 32px;
   --space-9: 36px;
 
+  /* ---------- controls ---------- */
+  --control-height: 36px;
+  --control-height-lg: 44px;
+  --touch-target: 44px;
+
   /* ---------- focus & motion ---------- */
-  --focus-ring: 0 0 0 3px var(--color-brand-tint);
-  --focus-ring-danger: 0 0 0 3px var(--color-critical-tint);
+  --focus-ring: 0 0 0 3px var(--color-bg-brand-primary);
+  --focus-ring-danger: 0 0 0 3px var(--color-bg-error-primary);
   --transition-fast: var(--duration-fast) var(--ease-out-quad);
 }

@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -9,6 +10,11 @@ export default defineConfig({
   define: {
     // Required by @excalidraw/excalidraw 0.17 when bundling with Vite.
     "process.env.IS_PREACT": JSON.stringify("false"),
+  },
+  // Untitled UI components are generated with `@/` imports; this mirrors the
+  // `paths` entry in tsconfig.json so they resolve at build time too.
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   build: {
     outDir: "../public",

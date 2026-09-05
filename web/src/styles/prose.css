@@ -21,9 +21,14 @@
 
 @layer base {
   .rendered {
-    color: var(--color-fg);
+    /* Long-form prose wants looser leading than UI chrome, so these
+       are local to `.rendered` rather than taken from the type scale. */
+    --prose-leading: 1.65;
+    --prose-leading-tight: 1.28;
+
+    color: var(--color-text-primary);
     font-size: var(--text-base);
-    line-height: var(--leading-normal);
+    line-height: var(--prose-leading);
   }
 
   /* ---------- headings ---------- */
@@ -33,10 +38,10 @@
   .rendered h4,
   .rendered h5,
   .rendered h6 {
-    color: var(--color-fg);
+    color: var(--color-text-primary);
     font-weight: 600;
-    line-height: var(--leading-tight);
-    letter-spacing: var(--tracking-snug);
+    line-height: var(--prose-leading-tight);
+    letter-spacing: var(--tracking-tight);
     margin-block: 1.6em 0.6em;
     scroll-margin-top: 5rem;
   }
@@ -44,14 +49,14 @@
     margin-block-start: 0;
   }
 
-  .rendered h1 { font-size: var(--text-3xl); }
-  .rendered h2 { font-size: var(--text-2xl); }
+  .rendered h1 { font-size: var(--text-display-xs); }
+  .rendered h2 { font-size: var(--text-xl); }
   .rendered h3 { font-size: var(--text-xl); }
   .rendered h4 { font-size: var(--text-lg); }
   .rendered h5 { font-size: var(--text-base); }
   .rendered h6 {
     font-size: var(--text-md);
-    color: var(--color-fg-muted);
+    color: var(--color-text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
@@ -82,7 +87,7 @@
     padding-inline-start: 0.15em;
   }
   .rendered li::marker {
-    color: var(--color-fg-subtle);
+    color: var(--color-text-quaternary);
   }
   /* Nested lists and paragraphs inside list items must not inherit
      the full block margin, or lists grow airy and disconnected. */
@@ -104,7 +109,7 @@
   }
   .rendered li > input[type="checkbox"] {
     margin-inline-end: 0.5em;
-    accent-color: var(--color-brand);
+    accent-color: var(--color-bg-brand-solid);
   }
 
   .rendered blockquote {
@@ -114,7 +119,7 @@
   .rendered hr {
     margin-block: 2em;
     border: 0;
-    border-top: 1px solid var(--color-line);
+    border-top: 1px solid var(--color-border-secondary);
   }
 
   .rendered dl {
@@ -130,11 +135,11 @@
 
   /* ---------- inline ---------- */
   .rendered a {
-    color: var(--color-brand-fg);
+    color: var(--color-text-brand-secondary);
     text-decoration: underline;
     text-underline-offset: 2px;
     text-decoration-thickness: 1px;
-    text-decoration-color: color-mix(in oklab, var(--color-brand-fg) 40%, transparent);
+    text-decoration-color: color-mix(in oklab, var(--color-text-brand-secondary) 40%, transparent);
   }
   .rendered a:hover {
     text-decoration-color: currentColor;
@@ -143,7 +148,7 @@
   .rendered strong,
   .rendered b {
     font-weight: 600;
-    color: var(--color-fg);
+    color: var(--color-text-primary);
   }
   .rendered em,
   .rendered i {
@@ -151,11 +156,11 @@
   }
   .rendered del {
     text-decoration: line-through;
-    color: var(--color-fg-muted);
+    color: var(--color-text-tertiary);
   }
   .rendered mark {
-    background: var(--color-warning-100);
-    color: var(--color-fg);
+    background: var(--color-yellow-100);
+    color: var(--color-text-primary);
     padding: 0.1em 0.2em;
     border-radius: var(--radius-xs);
   }
@@ -170,8 +175,8 @@
   .rendered :not(pre) > code {
     font-family: var(--font-mono);
     font-size: 0.875em;
-    background: var(--color-panel-sunken);
-    border: 1px solid var(--color-line);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-secondary);
     border-radius: var(--radius-xs);
     padding: 0.12em 0.36em;
     overflow-wrap: break-word;
@@ -196,7 +201,7 @@
     font-size: var(--text-md);
   }
   .rendered thead th {
-    background: var(--color-panel-sunken);
+    background: var(--color-bg-secondary);
     font-weight: 600;
     text-align: start;
   }
@@ -215,7 +220,7 @@
   .rendered figcaption {
     margin-block-start: 0.5em;
     font-size: var(--text-sm);
-    color: var(--color-fg-muted);
+    color: var(--color-text-tertiary);
     text-align: center;
   }
 

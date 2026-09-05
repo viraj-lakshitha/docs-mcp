@@ -12,7 +12,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["src", "../shared"]
 }
