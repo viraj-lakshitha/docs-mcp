@@ -1,7 +1,14 @@
 node_modules/
-public/
-dist/
-data/
+
+# Build output, all at the repo root. These are anchored with a leading slash
+# on purpose: an unanchored `public/` also matches web/public/, which is Vite's
+# static directory and holds the committed brand assets (logo-mark.svg, the
+# favicons, og.png). Leaving it unanchored silently excluded all of them, so
+# every icon 404'd on Vercel and any fresh clone while still rendering locally.
+/public/
+/dist/
+/data/
+
 .env*
 .vercel
 *.log
