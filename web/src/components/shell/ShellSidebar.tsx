@@ -35,7 +35,7 @@ export function ShellSidebar({
   return (
     <aside className="shell-sidebar">
       <div className="shell-sidebar__brand">
-        <BrandLogo size={22} />
+        <BrandLogo size={32} />
         <Brand as="span" />
       </div>
 

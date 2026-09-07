@@ -1,0 +1,215 @@
+/* ============================================================
+   Notes by Optiq Labs — brand palette
+
+   THIS IS THE ONLY FILE THAT DEFINES COLOUR VALUES.
+
+   Untitled UI's theme (styles/uui/theme.css, vendored verbatim so
+   `untitledui upgrade` stays clean) is built in two layers:
+
+     primitive ramps   --color-brand-*, --color-neutral-*, --color-red-*
+     semantic tokens   --color-text-primary: var(--color-neutral-900)
+                       --color-bg-brand-solid: var(--color-brand-600)
+                       ...~350 more, ALL var() references
+
+   Because every semantic token dereferences a ramp, replacing the
+   ramps here re-skins the entire system — light and dark, every
+   component — without editing a single one of their 856 lines.
+
+   Untitled UI ships a purple brand and Tailwind's stock cool-grey
+   neutral. We replace both: terracotta, and a warm stone neutral.
+   The app's original accent (#b3562e) and text (#1f1e1c) are
+   preserved exactly, as brand-600 and ~neutral-900.
+
+   Loaded AFTER uui/theme.css so these win within the theme layer.
+   ============================================================ */
+
+@theme {
+  /* ---------- brand: terracotta ----------
+     600 and 800 are the app's pre-existing --color-accent and
+     --color-accent-strong, unchanged. Untitled UI maps:
+       bg-brand-solid        -> 600   (button fills)
+       bg-brand-solid_hover  -> 700
+       text-brand-secondary  -> 700   (links; 6.6:1 on white)
+       border-brand          -> 500
+       bg-brand-primary      -> 50    (tints) */
+  --color-brand-25: #fdf8f5;
+  --color-brand-50: #fbefe9;
+  --color-brand-100: #f7dccf;
+  --color-brand-200: #eec0aa;
+  --color-brand-300: #e29e7d;
+  --color-brand-400: #d47c53;
+  --color-brand-500: #c2653a;
+  --color-brand-600: #b3562e;
+  --color-brand-700: #96461f;
+  --color-brand-800: #7e3a1c;
+  --color-brand-900: #663019;
+  --color-brand-950: #3d1a0c;
+
+  /* ---------- neutral: warm stone ----------
+     Replaces Tailwind's cool default. A terracotta accent on a cool
+     grey chrome reads as two unrelated palettes; these are hue-
+     matched to the brand.
+
+     Untitled UI's mapping, and the resulting contrast:
+                            LIGHT                DARK
+       bg-secondary (page)  50   #f7f7f5         900  #1c1b19
+       bg-primary  (cards)  white               950  #131211
+       text-primary         900  16.0:1          50   16.0:1
+       text-secondary       700  10.5:1          300  10.5:1
+       text-tertiary        600   5.2:1          400   6.8:1
+       text-quaternary      500   3.6:1  <- icons/placeholder only
+       border-primary       300                 700
+       border-secondary     200                 800
+
+     text-tertiary at 600 is the fix for the old --color-muted
+     (#7a766f), which was 4.21:1 and failed WCAG AA at the 12.5px
+     it was used at. */
+  --color-neutral-25: #fcfcfb;
+  --color-neutral-50: #f7f7f5;
+  --color-neutral-100: #f0efec;
+  --color-neutral-200: #e2e0dc;
+  --color-neutral-300: #cdcac3;
+  --color-neutral-400: #a8a49b;
+  --color-neutral-500: #86827a;
+  --color-neutral-600: #6b6760;
+  --color-neutral-700: #3d3a36;
+  --color-neutral-800: #2a2825;
+  --color-neutral-900: #1c1b19;
+  --color-neutral-950: #131211;
+
+  /* ---------- red: warm critical ----------
+     600 is the app's existing --color-danger (#a33830), 6.6:1 on
+     white. Tailwind's stock red is noticeably cooler and clashes
+     with the terracotta at small sizes. */
+  --color-red-25: #fefaf9;
+  --color-red-50: #fdf1f0;
+  --color-red-100: #fadfdd;
+  --color-red-200: #eccfcc;
+  --color-red-300: #dfa6a1;
+  --color-red-400: #c66d65;
+  --color-red-500: #b34f45;
+  --color-red-600: #a33830;
+  --color-red-700: #872b25;
+  --color-red-800: #6d221d;
+  --color-red-900: #4d1815;
+  --color-red-950: #2e0f0d;
+
+  /* ---------- green / yellow: warmed to match ----------
+     Only used for success/warning states, but stock Tailwind green
+     and amber are cold enough next to terracotta to look accidental. */
+  --color-green-25: #f6fbf7;
+  --color-green-50: #eef7f0;
+  --color-green-100: #d6ecdb;
+  --color-green-200: #aed9b9;
+  --color-green-300: #7cc191;
+  --color-green-400: #57a870;
+  --color-green-500: #3f9557;
+  --color-green-600: #2f7a44;
+  --color-green-700: #256237;
+  --color-green-800: #1e4d2c;
+  --color-green-900: #163a21;
+  --color-green-950: #0d2214;
+
+  --color-yellow-25: #fffcf5;
+  --color-yellow-50: #fdf5e9;
+  --color-yellow-100: #f8e6c6;
+  --color-yellow-200: #efd097;
+  --color-yellow-300: #e3b45f;
+  --color-yellow-400: #d89e35;
+  --color-yellow-500: #c98a1e;
+  --color-yellow-600: #a86f14;
+  --color-yellow-700: #85570f;
+  --color-yellow-800: #68440d;
+  --color-yellow-900: #4d330a;
+  --color-yellow-950: #2e1e06;
+
+  /* ---------- type ----------
+     The old scale used half-pixel sizes (11.5/12.5/13.5) that land
+     on sub-pixel boundaries and render soft. Whole pixels, body
+     lifted 14 -> 15px. Untitled UI's display-* sizes (typography.css)
+     cover the marketing headings the landing page used to hardcode
+     as 40px/34px/30px/28px/26px. */
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-body);
+  --font-sans: var(--font-body);
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-xs--line-height: 1.5;
+  --text-sm: 13px;
+  --text-sm--line-height: 1.5;
+  --text-md: 14px;
+  --text-md--line-height: 1.55;
+  --text-lg: 16px;
+  --text-lg--line-height: 1.6;
+  --text-xl: 18px;
+  --text-xl--line-height: 1.5;
+
+  /* ---------- motion ----------
+     The app previously had one easing curve and one keyframe.
+     Motion (motion.dev) reads these too, so CSS transitions and
+     JS-driven animation stay on the same curves. */
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --duration-slow: 360ms;
+
+  /* ---------- layout ----------
+     Previously hardcoded: 1120px appeared 5 times in styles.css. */
+  --container-max: 1120px;
+  --container-prose: 768px;
+  --spacing-sidebar: 264px;
+  --spacing-sidebar-rail: 68px;
+}
+
+@layer base {
+  /* Untitled UI has no page-background rule of its own — it expects
+     the app to pick one. bg-secondary is their page tone; bg-primary
+     is reserved for cards sitting on top of it. */
+  :root {
+    color-scheme: light;
+  }
+
+  :root.dark-mode {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-md);
+  }
+
+  /* Theme flips repaint most of the tree. Transitioning colour
+     globally looks smooth but is expensive, so it is scoped to a
+     short window that useTheme toggles on, and skipped entirely for
+     users who asked for reduced motion. */
+  :root.theme-transition,
+  :root.theme-transition *,
+  :root.theme-transition *::before,
+  :root.theme-transition *::after {
+    transition:
+      background-color var(--duration-normal) var(--ease-out-quad),
+      border-color var(--duration-normal) var(--ease-out-quad),
+      color var(--duration-normal) var(--ease-out-quad),
+      fill var(--duration-normal) var(--ease-out-quad) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root.theme-transition,
+    :root.theme-transition *,
+    :root.theme-transition *::before,
+    :root.theme-transition *::after {
+      transition: none !important;
+    }
+  }
+
+  ::selection {
+    background: var(--color-bg-brand-primary);
+  }
+}

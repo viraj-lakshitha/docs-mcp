@@ -1,0 +1,233 @@
+/* ============================================================
+   Document typography for rendered markdown (`.rendered`)
+
+   WHY THIS FILE EXISTS
+   `render.ts` pipes markdown through `marked` and assigns the
+   result with innerHTML, so the output is raw <h1>/<p>/<ul>/<li>
+   with no classes. Until now it relied entirely on the browser's
+   default UA stylesheet for its vertical rhythm.
+
+   Tailwind's Preflight zeroes every margin, strips list markers
+   and flattens heading sizes. Adding Tailwind without this file
+   collapses every rendered document into an undifferentiated wall
+   of text — in the editor preview, the public share page and the
+   landing hero demo simultaneously.
+
+   So: re-assert document typography, scoped to `.rendered` only,
+   in the same cascade layer as Preflight (later source order wins)
+   so the legacy layer can still override individual rules — e.g.
+   styles.css deliberately sets `blockquote { margin: 0 }`.
+   ============================================================ */
+
+@layer base {
+  .rendered {
+    /* Long-form prose wants looser leading than UI chrome, so these
+       are local to `.rendered` rather than taken from the type scale. */
+    --prose-leading: 1.65;
+    --prose-leading-tight: 1.28;
+
+    color: var(--color-text-primary);
+    font-size: var(--text-base);
+    line-height: var(--prose-leading);
+  }
+
+  /* ---------- headings ---------- */
+  .rendered h1,
+  .rendered h2,
+  .rendered h3,
+  .rendered h4,
+  .rendered h5,
+  .rendered h6 {
+    color: var(--color-text-primary);
+    font-weight: 600;
+    line-height: var(--prose-leading-tight);
+    letter-spacing: var(--tracking-tight);
+    margin-block: 1.6em 0.6em;
+    scroll-margin-top: 5rem;
+  }
+  .rendered > :first-child {
+    margin-block-start: 0;
+  }
+
+  .rendered h1 { font-size: var(--text-display-xs); }
+  .rendered h2 { font-size: var(--text-xl); }
+  .rendered h3 { font-size: var(--text-xl); }
+  .rendered h4 { font-size: var(--text-lg); }
+  .rendered h5 { font-size: var(--text-base); }
+  .rendered h6 {
+    font-size: var(--text-md);
+    color: var(--color-text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* A heading immediately after another heading is a subtitle —
+     it should not carry a full block of space above it. */
+  .rendered :is(h1, h2, h3, h4, h5, h6) + :is(h1, h2, h3, h4, h5, h6) {
+    margin-block-start: 0.6em;
+  }
+
+  /* ---------- flow ---------- */
+  .rendered p {
+    margin-block: 0 1em;
+  }
+
+  .rendered ul,
+  .rendered ol {
+    margin-block: 0 1em;
+    padding-inline-start: 1.55em;
+  }
+  .rendered ul { list-style: disc; }
+  .rendered ol { list-style: decimal; }
+  .rendered ul ul { list-style: circle; }
+  .rendered ul ul ul { list-style: square; }
+
+  .rendered li {
+    margin-block: 0.3em;
+    padding-inline-start: 0.15em;
+  }
+  .rendered li::marker {
+    color: var(--color-text-quaternary);
+  }
+  /* Nested lists and paragraphs inside list items must not inherit
+     the full block margin, or lists grow airy and disconnected. */
+  .rendered li > ul,
+  .rendered li > ol {
+    margin-block: 0.3em 0.3em;
+  }
+  .rendered li > p {
+    margin-block: 0 0.5em;
+  }
+  .rendered li > p:last-child {
+    margin-block-end: 0;
+  }
+
+  /* GitHub-style task lists — `marked` emits a real checkbox. */
+  .rendered li:has(> input[type="checkbox"]) {
+    list-style: none;
+    margin-inline-start: -1.4em;
+  }
+  .rendered li > input[type="checkbox"] {
+    margin-inline-end: 0.5em;
+    accent-color: var(--color-bg-brand-solid);
+  }
+
+  .rendered blockquote {
+    margin-block: 0 1em;
+  }
+
+  .rendered hr {
+    margin-block: 2em;
+    border: 0;
+    border-top: 1px solid var(--color-border-secondary);
+  }
+
+  .rendered dl {
+    margin-block: 0 1em;
+  }
+  .rendered dt {
+    font-weight: 600;
+    margin-block-start: 0.8em;
+  }
+  .rendered dd {
+    margin-inline-start: 1.5em;
+  }
+
+  /* ---------- inline ---------- */
+  .rendered a {
+    color: var(--color-text-brand-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in oklab, var(--color-text-brand-secondary) 40%, transparent);
+  }
+  .rendered a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .rendered strong,
+  .rendered b {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+  .rendered em,
+  .rendered i {
+    font-style: italic;
+  }
+  .rendered del {
+    text-decoration: line-through;
+    color: var(--color-text-tertiary);
+  }
+  .rendered mark {
+    background: var(--color-yellow-100);
+    color: var(--color-text-primary);
+    padding: 0.1em 0.2em;
+    border-radius: var(--radius-xs);
+  }
+  .rendered sub,
+  .rendered sup {
+    font-size: 0.75em;
+    line-height: 0;
+  }
+
+  /* Inline code only — fenced blocks are `pre > code` and are
+     styled by the block rule so they don't get a double chip. */
+  .rendered :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: var(--radius-xs);
+    padding: 0.12em 0.36em;
+    overflow-wrap: break-word;
+  }
+
+  .rendered pre {
+    margin-block: 0 1em;
+  }
+  .rendered pre code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: none;
+    border: 0;
+    padding: 0;
+  }
+
+  /* ---------- tables ----------
+     Preflight sets `border-collapse: collapse` already; the
+     spacing and header treatment are what it removes. */
+  .rendered table {
+    margin-block: 0 1em;
+    font-size: var(--text-md);
+  }
+  .rendered thead th {
+    background: var(--color-bg-secondary);
+    font-weight: 600;
+    text-align: start;
+  }
+
+  /* ---------- media ---------- */
+  .rendered img,
+  .rendered video {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-md);
+  }
+
+  .rendered figure {
+    margin-block: 0 1em;
+  }
+  .rendered figcaption {
+    margin-block-start: 0.5em;
+    font-size: var(--text-sm);
+    color: var(--color-text-tertiary);
+    text-align: center;
+  }
+
+  /* Mermaid/Excalidraw output is injected as raw <svg>; Preflight's
+     `display: block` on svg is what we want, but the diagram wrapper
+     needs its own rhythm. */
+  .rendered .diagram {
+    margin-block: 1.25em;
+  }
+}

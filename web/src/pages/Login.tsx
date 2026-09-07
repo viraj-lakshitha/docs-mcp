@@ -103,7 +103,7 @@ export default function Login() {
       <main className="login-card">
         <aside className="login-brand">
           <a href="/" className="login-brand__home" aria-label="Back to home">
-            <BrandLogo />
+            <BrandLogo size={56} variant="solid" />
             <Brand as="h2" />
           </a>
           <p>Create documents with Claude.</p>

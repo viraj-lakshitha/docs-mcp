@@ -1,0 +1,48 @@
+<!--
+  Notes by Optiq Labs — logo mark (transparent, no tile).
+
+  Vector reproduction of brand/notes-*-source.png so the logo stays crisp at
+  favicon sizes, carries real transparency, and can be recoloured per theme.
+  The raster sources are 1254px and downscale to mush at 16-32px.
+
+  Colours are the brand ramp from web/src/styles/palette.css:
+    brand-600 #b3562e  outline      brand-100 #f7dccf  fold fill
+    brand-500 #c2653a  connectors   brand-200 #eec0aa  light nodes
+    neutral-400 #a8a49b text lines
+
+  Geometry notes: the document occupies x 168-344, y 136-368. Connectors
+  start exactly on that boundary so no stub shows inside the page.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none" role="img" aria-label="Notes">
+  <!-- connectors first, so nodes and the document paint over their ends -->
+  <g stroke="#c2653a" stroke-width="20" stroke-linecap="round">
+    <path d="M104 244 H168" />
+    <path d="M344 268 H408" />
+    <path d="M344 228 C 390 228 410 200 418 170" />
+    <path d="M256 368 V 400" />
+  </g>
+
+  <!-- folded corner, filled behind the outline -->
+  <path d="M288 136 L344 192 H288 Z" fill="#f7dccf" />
+
+  <!-- document body — the cut corner is part of the outline -->
+  <path
+    d="M192 136 H288 L344 192 V344 a24 24 0 0 1 -24 24 H192 a24 24 0 0 1 -24 -24 V160 a24 24 0 0 1 24 -24 Z"
+    stroke="#b3562e" stroke-width="24" stroke-linejoin="round" />
+
+  <!-- fold crease -->
+  <path d="M288 136 V192 H344" stroke="#b3562e" stroke-width="24" stroke-linejoin="round" />
+
+  <!-- text lines -->
+  <g stroke="#a8a49b" stroke-width="20" stroke-linecap="round">
+    <path d="M204 236 H308" />
+    <path d="M204 272 H308" />
+    <path d="M204 308 H272" />
+  </g>
+
+  <!-- connection nodes -->
+  <circle cx="76" cy="244" r="28" fill="#b3562e" />
+  <circle cx="436" cy="268" r="28" fill="#b3562e" />
+  <circle cx="436" cy="144" r="28" fill="#eec0aa" />
+  <circle cx="256" cy="428" r="28" fill="#eec0aa" />
+</svg>

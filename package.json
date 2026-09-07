@@ -9,8 +9,9 @@
   },
   "type": "module",
   "scripts": {
-    "build": "npm install --prefix web && npm run build --prefix web && npm run build:api",
+    "build": "npm install --prefix web && npm run build --prefix web && npm run build:api && npm run check:csp",
     "build:api": "tsc -p tsconfig.build.json",
+    "check:csp": "node scripts/check-csp.mjs",
     "web": "tsx --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local src/web-server.ts",
     "dev:web": "npm run dev --prefix web",
     "dev:db": "node scripts/dev-db.mjs",

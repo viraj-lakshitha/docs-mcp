@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { renderDocument } from "../render.ts";
+import { useResolvedTheme } from "../hooks/useTheme.ts";
 import type { SharedDocumentView } from "../../../shared/types.ts";
 
 export default function Share() {
@@ -8,6 +9,7 @@ export default function Share() {
   const [doc, setDoc] = useState<SharedDocumentView | null>(null);
   const [error, setError] = useState("");
   const bodyRef = useRef<HTMLDivElement>(null);
+  const theme = useResolvedTheme();
 
   useEffect(() => {
     (async () => {
@@ -26,7 +28,7 @@ export default function Share() {
       document.title = `${doc.title} — Notes by Optiq Labs`;
       renderDocument(bodyRef.current!, doc.content);
     }
-  }, [doc]);
+  }, [doc, theme]);
 
   return (
     <div className="share-wrap">
